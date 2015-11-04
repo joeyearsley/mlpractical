@@ -20,7 +20,7 @@ class Optimiser(object):
     def train(self, model, train_iter, valid_iter=None):
         raise NotImplementedError()
 
-    def validate(self, model, valid_iterator):
+    def validate(self, model, valid_iterator, l1_weight=0, l2_weight=0):
         assert isinstance(model, MLP), (
             "Expected model to be a subclass of 'mlp.layers.MLP'"
             " class but got %s " % type(model)
@@ -40,7 +40,9 @@ class Optimiser(object):
         acc = numpy.mean(acc_list)
         nll = numpy.mean(nll_list)
 
-        return nll, acc
+        prior_costs = Optimiser.compute_prior_costs(model, l1_weight, l2_weight)
+
+        return nll + sum(prior_costs), acc
 
     @staticmethod
     def classification_accuracy(y, t):
@@ -56,9 +58,35 @@ class Optimiser(object):
         rval = numpy.equal(y_idx, t_idx)
         return rval
 
+    @staticmethod
+    def compute_prior_costs(model, l1_weight, l2_weight):
+        """
+        Computes the cost contributions coming from parameter-dependent only
+        regularisation penalties
+        """
+        assert isinstance(model, MLP), (
+            "Expected model to be a subclass of 'mlp.layers.MLP'"
+            " class but got %s " % type(model)
+        )
+
+        l1_cost, l2_cost = 0, 0
+        for i in xrange(0, len(model.layers)):
+            params = model.layers[i].get_params()
+            for param in params:
+                if l2_weight > 0:
+                    l2_cost += 0.5 * l2_weight * numpy.sum(param**2)
+                if l1_weight > 0:
+                    l1_cost += l1_weight * numpy.sum(numpy.abs(param))
+
+        return l1_cost, l2_cost
+
 
 class SGDOptimiser(Optimiser):
-    def __init__(self, lr_scheduler):
+    def __init__(self, lr_scheduler,
+                 dp_scheduler=None,
+                 l1_weight=0.0,
+                 l2_weight=0.0):
+
         super(SGDOptimiser, self).__init__()
 
         assert isinstance(lr_scheduler, LearningRateScheduler), (
@@ -67,6 +95,9 @@ class SGDOptimiser(Optimiser):
         )
 
         self.lr_scheduler = lr_scheduler
+        self.dp_scheduler = dp_scheduler
+        self.l1_weight = l1_weight
+        self.l2_weight = l2_weight
 
     def train_epoch(self, model, train_iterator, learning_rate):
 
@@ -97,7 +128,10 @@ class SGDOptimiser(Optimiser):
 
             for i in xrange(0, len(model.layers)):
                 params = model.layers[i].get_params()
-                grads = model.layers[i].pgrads(model.activations[i], model.deltas[i + 1])
+                grads = model.layers[i].pgrads(inputs=model.activations[i],
+                                               deltas=model.deltas[i + 1],
+                                               l1_weight=self.l1_weight,
+                                               l2_weight=self.l2_weight)
                 uparams = []
                 for param, grad in zip(params, grads):
                     param = param - effective_learning_rate * grad
@@ -107,7 +141,11 @@ class SGDOptimiser(Optimiser):
             nll_list.append(cost)
             acc_list.append(numpy.mean(self.classification_accuracy(y, t)))
 
-        return numpy.mean(nll_list), numpy.mean(acc_list)
+        #compute the prior penalties contribution (parameter dependent only)
+        prior_costs = Optimiser.compute_prior_costs(model, self.l1_weight, self.l2_weight)
+        training_cost = numpy.mean(nll_list) + sum(prior_costs)
+
+        return training_cost, numpy.mean(acc_list)
 
     def train(self, model, train_iterator, valid_iterator=None):
 
@@ -116,15 +154,16 @@ class SGDOptimiser(Optimiser):
         tr_stats, valid_stats = [], []
 
         # do the initial validation
-        tr_nll, tr_acc = self.validate(model, train_iterator)
-        logger.info('Epoch %i: Training cost (%s) for random model is %.3f. Accuracy is %.2f%%'
+        train_iterator.reset()
+        tr_nll, tr_acc = self.validate(model, train_iterator, self.l1_weight, self.l2_weight)
+        logger.info('Epoch %i: Training cost (%s) for initial model is %.3f. Accuracy is %.2f%%'
                     % (self.lr_scheduler.epoch, cost_name, tr_nll, tr_acc * 100.))
         tr_stats.append((tr_nll, tr_acc))
 
         if valid_iterator is not None:
             valid_iterator.reset()
-            valid_nll, valid_acc = self.validate(model, valid_iterator)
-            logger.info('Epoch %i: Validation cost (%s) for random model is %.3f. Accuracy is %.2f%%'
+            valid_nll, valid_acc = self.validate(model, valid_iterator, self.l1_weight, self.l2_weight)
+            logger.info('Epoch %i: Validation cost (%s) for initial model is %.3f. Accuracy is %.2f%%'
                         % (self.lr_scheduler.epoch, cost_name, valid_nll, valid_acc * 100.))
             valid_stats.append((valid_nll, valid_acc))
 
@@ -144,7 +183,8 @@ class SGDOptimiser(Optimiser):
             vstart = time.clock()
             if valid_iterator is not None:
                 valid_iterator.reset()
-                valid_nll, valid_acc = self.validate(model, valid_iterator)
+                valid_nll, valid_acc = self.validate(model, valid_iterator,
+                                                     self.l1_weight, self.l2_weight)
                 logger.info('Epoch %i: Validation cost (%s) is %.3f. Accuracy is %.2f%%'
                             % (self.lr_scheduler.epoch + 1, cost_name, valid_nll, valid_acc * 100.))
                 self.lr_scheduler.get_next_rate(valid_acc)
@@ -153,8 +193,8 @@ class SGDOptimiser(Optimiser):
                 self.lr_scheduler.get_next_rate(None)
             vstop = time.clock()
 
-            train_speed = train_iterator.num_examples() / (tstop - tstart)
-            valid_speed = valid_iterator.num_examples() / (vstop - vstart)
+            train_speed = train_iterator.num_examples_presented() / (tstop - tstart)
+            valid_speed = valid_iterator.num_examples_presented() / (vstop - vstart)
             tot_time = vstop - tstart
             #pps = presentations per second
             logger.info("Epoch %i: Took %.0f seconds. Training speed %.0f pps. "
