@@ -111,6 +111,10 @@ class SGDOptimiser(Optimiser):
         )
 
         acc_list, nll_list = [], []
+        
+        #Next epoch, next dropout, right?
+        logger.info(self.dp_scheduler.get_next_rate())
+        
         for x, t in train_iterator:
 
             # get the prediction
@@ -129,7 +133,7 @@ class SGDOptimiser(Optimiser):
             #update the model, here we iterate over layers
             #and then over each parameter in the layer
             effective_learning_rate = learning_rate / x.shape[0]
-
+            
             for i in xrange(0, len(model.layers)):
                 params = model.layers[i].get_params()
                 grads = model.layers[i].pgrads(inputs=model.activations[i],

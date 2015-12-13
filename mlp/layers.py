@@ -110,9 +110,11 @@ class MLP(object):
 
         d_inp = 1
         p_inp_scaler, p_hid_scaler = 1.0/p_inp, 1.0/p_hid
+        
         if p_inp < 1:
             d_inp = self.rng.binomial(1, p_inp, size=x.shape)
 
+        logger.info(d_inp)
         self.activations[0] = p_inp_scaler*d_inp*x
         self.activations[1] = self.layers[0].fprop(self.activations[0])
         for i in xrange(1, len(self.layers)):

@@ -2,7 +2,9 @@
 # Pawel Swietojanski, University of Edinburgh
 
 import logging
+import numpy
 
+logger = logging.getLogger(__name__)
 
 class LearningRateScheduler(object):
     """
@@ -17,8 +19,8 @@ class LearningRateScheduler(object):
 
     def get_next_rate(self, current_accuracy=None):
         self.epoch += 1
-
-
+       
+        
 class LearningRateList(LearningRateScheduler):
     def __init__(self, learning_rates_list, max_epochs):
 
@@ -38,8 +40,7 @@ class LearningRateList(LearningRateScheduler):
     def get_next_rate(self, current_accuracy=None):
         super(LearningRateList, self).get_next_rate(current_accuracy=None)
         return self.get_rate()
-
-
+         
 class LearningRateFixed(LearningRateList):
 
     def __init__(self, learning_rate, max_epochs):
@@ -57,7 +58,46 @@ class LearningRateFixed(LearningRateList):
         super(LearningRateFixed, self).get_next_rate(current_accuracy=None)
         return self.get_rate()
 
+class LearningRateExponential(LearningRateScheduler):
+    def __init__(self, start_rate, max_epochs, training_size, zero_rate=0.5):
+        
+        self.training_size = training_size
+        
+        assert start_rate > 0, (
+            "starting rate expected to be > 0, got %f" % start_rate
+        )
+        assert zero_rate > 0, (
+            "zero rate expected to be > 0, got %f" % zero_rate
+        )
+        super(LearningRateExponential, self).__init__(max_epochs)
+        
+        self.start_rate = start_rate
+        self.zero_rate = zero_rate
+        self.rate = start_rate
+        self.epoch = 1
+    
+    def reset(self):
+        self.rate = self.start_rate
+        self.epoch = 1
+        
+    def get_rate(self):
+        if (self.epoch==1 and self.zero_rate!=None):
+            return self.zero_rate
+        return self.rate  
 
+    def get_next_rate(self,current_accuracy=None):  
+        if ( (self.max_epochs > 10000) or (self.epoch >= self.max_epochs) ):
+            #logging.debug('Setting rate to 0.0. max_epochs or epoch>=max_epochs')
+            self.rate = 0.0
+        else:
+            self.rate = self.zero_rate * numpy.exp(-self.epoch/self.training_size)
+            self.epoch += 1
+    
+        return self.rate
+
+
+    
+    
 class LearningRateNewBob(LearningRateScheduler):
     """
     newbob learning rate schedule.
@@ -170,3 +210,33 @@ class DropoutFixed(LearningRateList):
 
     def get_next_rate(self, current_accuracy=None):
         return self.get_rate()
+    
+class DropoutAnnealed(LearningRateList):
+
+    def __init__(self, p_inp_keep, p_hid_keep, constant_to_reduce):
+        assert 0 < p_inp_keep <= 1 and 0 < p_hid_keep <= 1, (
+            "Dropout 'keep' probabilites are suppose to be in (0, 1] range"
+        )
+        
+        self.lr_temp = []
+        #Build up learning rates 
+        while(p_inp_keep < 1 and p_hid_keep < 1):
+                self.lr_temp.append((p_inp_keep, p_hid_keep))
+                p_inp_keep = p_inp_keep + constant_to_reduce
+                p_hid_keep = p_hid_keep + constant_to_reduce
+                
+        self.lr_temp.append((1, 1))
+        
+        super(DropoutAnnealed, self).__init__(self.lr_temp, max_epochs=999)
+        
+      
+    def get_rate(self):
+        return self.lr_list[self.epoch]
+
+    def get_next_rate(self, current_accuracy=None):
+        if(self.epoch == len(self.lr_list)-1):
+            return self.lr_list[self.epoch]
+        # Update the next rate
+        self.epoch += 1
+        
+        return self.lr_list[self.epoch]
