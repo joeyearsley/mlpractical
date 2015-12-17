@@ -212,6 +212,7 @@ class MNISTDataProvider(DataProvider):
             
         '''
         options = {0 : noAug, 1: gaussianBlur, 2: rotate, 3: dropPixels, 4: shiftImg}
+        
         if self.augmentation == 5:
             rval_x = options[randint(0,4)](self, rval_x)
         else:

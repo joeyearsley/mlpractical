@@ -7,7 +7,6 @@ import logging
 from mlp.costs import Cost
 
 
-
 def max_and_argmax(x, axes=None, keepdims_max=False, keepdims_argmax=False):
     """
     Return both max and argmax for the given multi-dimensional array, possibly
@@ -123,7 +122,8 @@ class MLP(object):
 
         return self.activations[-1]
 
-    def bprop(self, cost_grad, dp_scheduler=None):
+    #Set pretrain to false by default.
+    def bprop(self, cost_grad, dp_scheduler=None, pretrain=False):
         """
         :param cost_grad: matrix -- grad of the cost w.r.t y
         :return: None, the deltas are kept in the model
@@ -148,11 +148,15 @@ class MLP(object):
             p_inp, p_hid = dp_scheduler.get_rate()
             p_hid_scaler /= p_hid
             
-            
-        # then back-prop through remaining layers
-        for i in xrange(top_layer_idx - 1, 0, -1):
+        if(pretrain):
+            i = top_layer_idx - 1
             self.deltas[i], ograds = self.layers[i - 1].\
-                bprop(self.activations[i], ograds*p_hid_scaler)
+                    bprop(self.activations[i], ograds*p_hid_scaler)
+        else:
+            # then back-prop through remaining layers
+            for i in xrange(top_layer_idx - 1, 0, -1):
+                self.deltas[i], ograds = self.layers[i - 1].\
+                    bprop(self.activations[i], ograds*p_hid_scaler)
 
     def add_layer(self, layer):
         self.layers.append(layer)
@@ -276,7 +280,7 @@ class Linear(Layer):
         #input comes from 4D convolutional tensor, reshape to expected shape
         if inputs.ndim == 4:
             inputs = inputs.reshape(inputs.shape[0], -1)
-
+            
         a = numpy.dot(inputs, self.W) + self.b
         # here f() is an identity function, so just return a linear transformation
         return a
@@ -407,7 +411,7 @@ class Sigmoid(Linear):
         return deltas, ograds
 
     def bprop_cost(self, h, igrads, cost):
-        if cost is None or cost.get_name() == 'bce':
+        if cost is None or cost.get_name() == 'mse':
             return super(Sigmoid, self).bprop(h=h, igrads=igrads)
         else:
             raise NotImplementedError('Sigmoid.bprop_cost method not implemented '

@@ -19,6 +19,10 @@ class LearningRateScheduler(object):
 
     def get_next_rate(self, current_accuracy=None):
         self.epoch += 1
+        
+    #Reset the epochs for pretrain, ensures just one method can be called
+    def reset(self):
+        self.epoch = 0
        
         
 class LearningRateList(LearningRateScheduler):
@@ -81,7 +85,7 @@ class LearningRateExponential(LearningRateScheduler):
         self.epoch = 1
         
     def get_rate(self):
-        if (self.epoch==1 and self.zero_rate!=None):
+        if (self.epoch == 1 and self.zero_rate!=None):
             return self.zero_rate
         return self.rate  
 
@@ -90,9 +94,10 @@ class LearningRateExponential(LearningRateScheduler):
             #logging.debug('Setting rate to 0.0. max_epochs or epoch>=max_epochs')
             self.rate = 0.0
         else:
-            self.rate = self.zero_rate * numpy.exp(-self.epoch/self.training_size)
+            #Use float or it won't return properly.
+            self.rate = self.zero_rate * numpy.exp(-float(self.epoch)/float(self.training_size))
             self.epoch += 1
-    
+        logger.info(self.rate)
         return self.rate
 
 
