@@ -22,16 +22,68 @@ swap it layer, for example, for more efficient implementation if you came up wit
 def my1_conv2d(image, kernels, strides=(1, 1)):
     """
     Implements a 2d valid convolution of kernels with the image
-    Note: filer means the same as kernel and convolution (correlation) of those with the input space
-    produces feature maps (sometimes refereed to also as receptive fields). Also note, that
+    Note: filter means the same as kernel and convolution (correlation) of those with the input space
+    produces feature maps (sometimes refered to also as receptive fields). Also note, that
     feature maps are synonyms here to channels, and as such num_inp_channels == num_inp_feat_maps
     :param image: 4D tensor of sizes (batch_size, num_input_channels, img_shape_x, img_shape_y)
     :param filters: 4D tensor of filters of size (num_inp_feat_maps, num_out_feat_maps, kernel_shape_x, kernel_shape_y)
     :param strides: a tuple (stride_x, stride_y), specifying the shift of the kernels in x and y dimensions
     :return: 4D tensor of size (batch_size, num_out_feature_maps, feature_map_shape_x, feature_map_shape_y)
     """
-    raise NotImplementedError('Write me!')
-
+   
+    '''
+        Implement Convoloution here, passing back the convolutions here?
+    '''
+    
+    #Get batch_size out
+    batch_size = image.shape[0]
+    
+    '''
+    
+    Image dims - Used equation from stanford lectures: http://cs231n.github.io/convolutional-networks/
+    if((InputSize−FilterSize+2Padding)/Stride+1) is valid int then carry on else throw and error, first calculate
+    
+    '''
+    
+    #Padding not implemented
+    padding = 0
+    
+    #Get kernel sizes
+    kxdim = kernels.shape[2]
+    kydim = kernels.shape[3]
+    
+    #Can calculate here as this is all we are going to go to anyway.
+    xdims = ((image.shape[2] - kxdim + (2*padding))/strides[0])+1
+    ydims = ((image.shape[3] - kydim + (2*padding))/strides[1])+1
+    
+    #Do assertions to ensure passed in the correct type.
+    assert type(xdims) is IntType,"Can't make feature map with x-stride: %r" % strides[0]
+    assert type(ydims) is IntType,"Can't make feature map with y-stride: %r" % strides[1]
+    
+    #Get feature map size out
+    num_out_feat_maps = kernels.shape[1]
+    #Get input feature size
+    num_inp_feat_maps = kernels.shape[0]
+     
+    #Create empty 4D tensor
+    output =  np.zeros((batch_size,out,xdims,ydims))
+    
+    #For each image in batch
+    for img in xrange(batch_size)
+        #For each feature map (output map)
+        for fm in xrange(num_out_feat_maps)
+            #For each x-dim in output
+            for x in xrange(xdims)
+                #For each y-dim in output
+                for y in xrange(ydims)
+                    #Get image slice from entire image, corresponds to kernel size, accross all channels.
+                    imgSlice = image[img, :, x:x+kxdim, y:y+kydim]
+                    #Get kernels accross all channels.
+                    kernel = kernels[:, fm, :, :]
+                    #Do the dot product to get the position.
+                    output[batch_size, fm, x, y] = numpy.dot(imgSlice.flattern(),kernel.flattern())
+                
+    return output
 
 class ConvLinear(Layer):
     def __init__(self,
@@ -65,12 +117,21 @@ class ConvLinear(Layer):
         raise NotImplementedError()
 
     def fprop(self, inputs):
+        # Linear(conv_fwd)?
+        #Remember bias
         raise NotImplementedError()
 
     def bprop(self, h, igrads):
+        '''
+        Deltas - All weights which connect to that point * deltas of layer in front * linear derivative?
+        ograds - same as other layers?
+        '''
         raise NotImplementedError()
+        
+        return deltas, ograds
 
     def bprop_cost(self, h, igrads, cost):
+        #No need to implement cost, as we won't ever use it as an output.
         raise NotImplementedError('ConvLinear.bprop_cost method not implemented')
 
     def pgrads(self, inputs, deltas, l1_weight=0, l2_weight=0):

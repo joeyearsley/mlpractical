@@ -112,8 +112,9 @@ class SGDOptimiser(Optimiser):
 
         acc_list, nll_list = [], []
         
-        #Next epoch, next dropout, right?
-        logger.info(self.dp_scheduler.get_next_rate())
+        #Next epoch, next dropout rate if annealed.
+        if self.dp_scheduler is not None:
+            self.dp_scheduler.get_next_rate()
         
         for x, t in train_iterator:
 
@@ -128,7 +129,7 @@ class SGDOptimiser(Optimiser):
             cost_grad = model.cost.grad(y, t)
 
             # do backward pass through the model
-            model.bprop(cost_grad)
+            model.bprop(cost_grad, self.dp_scheduler)
 
             #update the model, here we iterate over layers
             #and then over each parameter in the layer
@@ -216,3 +217,90 @@ class SGDOptimiser(Optimiser):
             converged = (self.lr_scheduler.get_rate() == 0)
 
         return tr_stats, valid_stats
+    
+    '''
+        Pretrain using auto-encoders, go through until final layer training for certain amount of epochs.
+        Then fine tune by adding final layer and doing standard backprop.
+    
+    def pretrain(self, model, train_iterator, valid_iterator=None):
+
+        converged = False
+        cost_name = model.cost.get_name()
+        tr_stats, valid_stats = [], []
+        
+        """
+        Do the below for each layer
+        """
+        
+        layers = model.layers
+        
+        #Train first layer normally, then build on top.
+        #Remember to add noise - add option to reset, to with noise, allow gaussian noise to be added.
+        #Remember sigmoid cost to implement.
+        
+        
+        
+        
+        for(i in xrange(0,size(layers)-2)):
+            
+            
+            # do the initial validation
+            train_iterator.reset()
+            tr_nll, tr_acc = self.validate(model, train_iterator, self.l1_weight, self.l2_weight)
+            logger.info('Epoch %i: Training cost (%s) for initial model is %.3f. Accuracy is %.2f%%'
+                        % (self.lr_scheduler.epoch, cost_name, tr_nll, tr_acc * 100.))
+            tr_stats.append((tr_nll, tr_acc))
+
+
+            if valid_iterator is not None:
+                valid_iterator.reset()
+                valid_nll, valid_acc = self.validate(model, valid_iterator, self.l1_weight, self.l2_weight)
+                logger.info('Epoch %i: Validation cost (%s) for initial model is %.3f. Accuracy is %.2f%%'
+                            % (self.lr_scheduler.epoch, cost_name, valid_nll, valid_acc * 100.))
+                valid_stats.append((valid_nll, valid_acc))
+
+            while not converged:
+                train_iterator.reset()
+
+                tstart = time.clock()
+                tr_nll, tr_acc = self.train_epoch(model=model,
+                                                  train_iterator=train_iterator,
+                                                  learning_rate=self.lr_scheduler.get_rate())
+                tstop = time.clock()
+                tr_stats.append((tr_nll, tr_acc))
+
+                logger.info('Epoch %i: Training cost (%s) is %.3f. Accuracy is %.2f%%'
+                            % (self.lr_scheduler.epoch + 1, cost_name, tr_nll, tr_acc * 100.))
+
+                vstart = time.clock()
+                if valid_iterator is not None:
+                    valid_iterator.reset()
+                    valid_nll, valid_acc = self.validate(model, valid_iterator,
+                                                         self.l1_weight, self.l2_weight)
+                    logger.info('Epoch %i: Validation cost (%s) is %.3f. Accuracy is %.2f%%'
+                                % (self.lr_scheduler.epoch + 1, cost_name, valid_nll, valid_acc * 100.))
+                    self.lr_scheduler.get_next_rate(valid_acc)
+                    valid_stats.append((valid_nll, valid_acc))
+                else:
+                    self.lr_scheduler.get_next_rate(None)
+                vstop = time.clock()
+
+                train_speed = train_iterator.num_examples_presented() / (tstop - tstart)
+                valid_speed = valid_iterator.num_examples_presented() / (vstop - vstart)
+                tot_time = vstop - tstart
+                #pps = presentations per second
+                logger.info("Epoch %i: Took %.0f seconds. Training speed %.0f pps. "
+                            "Validation speed %.0f pps."
+                            % (self.lr_scheduler.epoch, tot_time, train_speed, valid_speed))
+
+                # we stop training when learning rate, as returned by lr scheduler, is 0
+                # this is implementation dependent and depending on lr schedule could happen,
+                # for example, when max_epochs has been reached or if the progress between
+                # two consecutive epochs is too small, etc.
+                converged = (self.lr_scheduler.get_rate() == 0)
+            
+        #Return at end?
+        return tr_stats, valid_stats
+        
+'''
+

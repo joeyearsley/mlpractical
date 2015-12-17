@@ -5,11 +5,44 @@
 import cPickle
 import gzip
 import numpy
+import scipy.ndimage
 import os
 import logging
-
+#Import random int for helping to randomly add augmentation
+from random import randint
 
 logger = logging.getLogger(__name__)
+
+#No Augmentation so we just return the originals
+def noAug(self,imgs):
+    return imgs
+
+#Add Gaussian noise
+def gaussianBlur(self,imgs):
+    pd = (randint(0,5)/10)
+    #Apply gaussian blur
+    return scipy.ndimage.gaussian_filter(img, sigma=pd)
+
+#Rotate by a random number    
+def rotate(self,imgs):
+    '''
+       Rotate randomly, only worthwile between [-10,10], otherwise it's hard to keep it central.
+           Increase if you don't mind some figures having tips cut off.
+           Re-size back to normal size of arrays given, then flatten back to 784.
+    '''
+    temp = scipy.ndimage.interpolation.rotate(img, randint(-10,10))[0:28,0:28].copy()
+    return temp.flatten()
+
+#Drop pixels randomly
+def dropPixels(self,imgs):
+    #Don't want to much random dropout, so we allow for it to between [0.5,1]
+    pd = 1-(randint(0,5)/10)
+    d = self.rng.binomial(1, pd, img.shape)
+    return d*img
+
+#Shift the image either left or right by a few dimensions
+def shiftImg(self,imgs):
+    return numpy.roll(imgs, randint(-5,5))
 
 
 class DataProvider(object):
@@ -83,6 +116,7 @@ class MNISTDataProvider(DataProvider):
                  max_num_batches=-1,
                  max_num_examples=-1,
                  randomize=True,
+                 augmentation=0,
                  rng=None,
                  conv_reshape=False):
 
@@ -96,6 +130,12 @@ class MNISTDataProvider(DataProvider):
         
         assert max_num_batches != 0, (
             "max_num_batches should be != 0"
+        )
+        
+        #Assertion to see what type of augmentation we wish to use.
+        assert (-1 < augmentation and augmentation < 6),(
+            "augmentation should be between 0 and 5, where 0 - noAug, 1 - gaussianBlur, 2 - rotate,\
+                3 - dropPixels, 4 - shiftImg" 
         )
         
         if max_num_batches > 0 and max_num_examples > 0:
@@ -120,6 +160,8 @@ class MNISTDataProvider(DataProvider):
         self.x = x
         self.t = t
         self.num_classes = 10
+        #Set augmentation to [0,5], default is 0 - no Aug, look at the options below for more
+        self.augmentation = augmentation
         self.conv_reshape = conv_reshape
 
         self._rand_idx = None
@@ -163,7 +205,18 @@ class MNISTDataProvider(DataProvider):
         rval_t = self.t[range_idx]
 
         self._curr_idx += self.batch_size
-
+        
+        '''
+            Options to call functions further down
+            self.augmentation defines which we want to do.
+            
+        '''
+        options = {0 : noAug, 1: gaussianBlur, 2: rotate, 3: dropPixels, 4: shiftImg}
+        if self.augmentation == 5:
+            rval_x = options[randint(0,4)](self, rval_x)
+        else:
+            rval_x = options[self.augmentation](self, rval_x)
+        
         if self.conv_reshape:
             rval_x = rval_x.reshape(self.batch_size, 1, 28, 28)
 
@@ -180,6 +233,7 @@ class MNISTDataProvider(DataProvider):
         for i in xrange(y.shape[0]):
             rval[i, y[i]] = 1
         return rval
+    
 
 
 class MetOfficeDataProvider(DataProvider):
