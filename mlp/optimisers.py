@@ -2,6 +2,7 @@
 # Pawel Swietojanski, University of Edinburgh
 
 import numpy
+import scipy.ndimage
 import time
 import logging
 
@@ -9,6 +10,9 @@ from mlp.layers import MLP,Sigmoid
 from mlp.dataset import DataProvider
 from mlp.schedulers import LearningRateScheduler
 from mlp.costs import MSECost
+#Import random int for helping to randomly add augmentation
+from random import randint
+
 
 logger = logging.getLogger(__name__)
 
@@ -222,13 +226,12 @@ class SGDOptimiser(Optimiser):
         Pretrain using auto-encoders, go through until final layer training for certain amount of epochs.
         Then fine tune by adding final layer and doing standard backprop.
     '''
-    def pretrain(self, model, train_iterator, valid_iterator=None):
+    def pretrain(self, model, train_iterator, valid_iterator=None, noise=0):
         converged = False
         cost_name = model.cost.get_name()
         tr_stats, valid_stats = [], []
         rng = numpy.random.RandomState([2015,10,10])
-        #Empty list for inputs, so we keep consistent throughout the stacks
-        inputs = []
+        
         
         """
         Do the below for each layer
@@ -244,7 +247,8 @@ class SGDOptimiser(Optimiser):
         cost = MSECost()
         #define the temporary model
         trainingModel = MLP(cost=cost)
-        
+        #Empty list to keep consistent inputs
+        inputs = []
         
         '''
             Build up inputs for epochs, only interested in x.
@@ -252,7 +256,6 @@ class SGDOptimiser(Optimiser):
         
         for x,t in train_iterator:
             inputs.append(x)
-        
         '''
             
         '''
@@ -293,7 +296,7 @@ class SGDOptimiser(Optimiser):
                 #Pass inputs instead of train iterator.
                 tr_nll, tr_acc = self.pretrain_epoch(model=trainingModel,
                                                   train_iterator=inputs,
-                                                  learning_rate=self.lr_scheduler.get_rate(), layer=i)
+                                                  learning_rate=self.lr_scheduler.get_rate(), layer=i, noise=noise)
                 tstop = time.clock()
                 tr_stats.append((tr_nll, tr_acc))
 
@@ -324,8 +327,9 @@ class SGDOptimiser(Optimiser):
         return tr_stats, valid_stats
         
 
-    def pretrain_epoch(self, model, train_iterator, learning_rate, layer):
-
+    def pretrain_epoch(self, model, train_iterator, learning_rate, layer, noise):
+        
+        self.rng = numpy.random.RandomState([2015,10,10])
         assert isinstance(model, MLP), (
             "Expected model to be a subclass of 'mlp.layers.MLP'"
             " class but got %s " % type(model)
@@ -336,7 +340,13 @@ class SGDOptimiser(Optimiser):
             " class but got %s " % type(train_iterator)
         )
         '''
+        
+        
+        assert ( 0 <= noise and noise <= 1),(
+            "Noise added must be between 0 and 1" 
+        )
         acc_list, nll_list = [], []
+        
         
         #Next epoch, next dropout rate if annealed.
         if self.dp_scheduler is not None:
@@ -346,26 +356,33 @@ class SGDOptimiser(Optimiser):
         #Move to the function to pretrain to ensure same images, then just pass the correct list each epoch.
         #Replacing the x,t
         for x in train_iterator:
+            #Empty list to keep track
+            inputs = []
             
-            #Add Noise Here to the image given, if it is the first layer, else just put it into xhat.
+            #Add Noise Here to the image given, if it is the first layer, else just put it into inputs
+            if noise == 0:
+                inputs = x
+            elif noise <= 1:
+                for img in x:
+                    img.reshape(28,28)
+                    d = self.rng.binomial(1, noise, img.shape)
+                    img = img*d
+                    inputs.append(img.flatten()) 
             
+            #Change to a numpy array
+            inputs = numpy.array(inputs)
             
-            
-            
-            # get the prediction
+            # Get the prediction, use noise if specified
             if self.dp_scheduler is not None:
-                y = model.fprop_dropout(x, self.dp_scheduler)
+                y = model.fprop_dropout(inputs, self.dp_scheduler)
             else:
-                y = model.fprop(x)
+                y = model.fprop(inputs)
             
             #If layer is not 0, as we want to do this after the intial input
             if layer != 0:
                 x = model.activations[layer]
-                
-            #logger.info(model.activations[layer].shape)
-            #logger.info(x.shape)
             
-            # compute the cost and grad of the cost w.r.t y
+            # compute the cost and grad of the cost w.r.t y, still use original
             cost = model.cost.cost(y, x)
             cost_grad = model.cost.grad(y, x)
 

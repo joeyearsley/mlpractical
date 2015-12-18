@@ -18,13 +18,13 @@ def noAug(self,imgs):
     return imgs
 
 #Add Gaussian noise
-def gaussianBlur(self,imgs):
+def gaussianBlur(self,img):
     pd = (randint(0,5)/10)
     #Apply gaussian blur
     return scipy.ndimage.gaussian_filter(img, sigma=pd)
 
 #Rotate by a random number    
-def rotate(self,imgs):
+def rotate(self,img):
     '''
        Rotate randomly, only worthwile between [-10,10], otherwise it's hard to keep it central.
            Increase if you don't mind some figures having tips cut off.
@@ -34,14 +34,14 @@ def rotate(self,imgs):
     return temp.flatten()
 
 #Drop pixels randomly
-def dropPixels(self,imgs):
+def dropPixels(self,img):
     #Don't want to much random dropout, so we allow for it to between [0.5,1]
     pd = 1-(randint(0,5)/10)
     d = self.rng.binomial(1, pd, img.shape)
     return d*img
 
 #Shift the image either left or right by a few dimensions
-def shiftImg(self,imgs):
+def shiftImg(self,img):
     return numpy.roll(imgs, randint(-5,5))
 
 
