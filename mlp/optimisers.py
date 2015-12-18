@@ -227,6 +227,8 @@ class SGDOptimiser(Optimiser):
         cost_name = model.cost.get_name()
         tr_stats, valid_stats = [], []
         rng = numpy.random.RandomState([2015,10,10])
+        #Empty list for inputs, so we keep consistent throughout the stacks
+        inputs = []
         
         """
         Do the below for each layer
@@ -243,6 +245,14 @@ class SGDOptimiser(Optimiser):
         #define the temporary model
         trainingModel = MLP(cost=cost)
         
+        
+        '''
+            Build up inputs for epochs, only interested in x.
+        '''
+        
+        for x,t in train_iterator:
+            inputs.append(x)
+        
         '''
             
         '''
@@ -251,7 +261,6 @@ class SGDOptimiser(Optimiser):
             logger.info("Max epochs %i",self.lr_scheduler.max_epochs)
             self.lr_scheduler.reset()
             logger.info("epochs %i",self.lr_scheduler.epoch)
-            tr_acc = 0
             converged = False
             
             logger.info("Running")
@@ -281,8 +290,9 @@ class SGDOptimiser(Optimiser):
                 train_iterator.reset()
 
                 tstart = time.clock()
+                #Pass inputs instead of train iterator.
                 tr_nll, tr_acc = self.pretrain_epoch(model=trainingModel,
-                                                  train_iterator=train_iterator,
+                                                  train_iterator=inputs,
                                                   learning_rate=self.lr_scheduler.get_rate(), layer=i)
                 tstop = time.clock()
                 tr_stats.append((tr_nll, tr_acc))
@@ -298,7 +308,8 @@ class SGDOptimiser(Optimiser):
             
             
             #Now set parameters of layer we added.
-            model.layers[i].set_params(trainingModel.layers[len(trainingModel.layers)-1].get_params())
+            model.layers[i].set_params(trainingModel.layers[i].get_params())
+            
             logger.info('activations %i',len(trainingModel.activations))
             #Remove activation as we aren't interested in the final activation
             trainingModel.activations = trainingModel.activations[:-1]
@@ -307,7 +318,8 @@ class SGDOptimiser(Optimiser):
             #Now remove final layer as we aren't interested in it.
             trainingModel.set_layers(trainingModel.layers[:-1])
                 
-                
+        self.lr_scheduler.reset()
+                    
         #Return at end?
         return tr_stats, valid_stats
         
@@ -318,11 +330,12 @@ class SGDOptimiser(Optimiser):
             "Expected model to be a subclass of 'mlp.layers.MLP'"
             " class but got %s " % type(model)
         )
+        '''
         assert isinstance(train_iterator, DataProvider), (
             "Expected iterator to be a subclass of 'mlp.dataset.DataProvider'"
             " class but got %s " % type(train_iterator)
         )
-
+        '''
         acc_list, nll_list = [], []
         
         #Next epoch, next dropout rate if annealed.
@@ -332,7 +345,7 @@ class SGDOptimiser(Optimiser):
         #Do this for max_epochs?
         #Move to the function to pretrain to ensure same images, then just pass the correct list each epoch.
         #Replacing the x,t
-        for x, t in train_iterator:
+        for x in train_iterator:
             
             #Add Noise Here to the image given, if it is the first layer, else just put it into xhat.
             
@@ -349,8 +362,8 @@ class SGDOptimiser(Optimiser):
             if layer != 0:
                 x = model.activations[layer]
                 
-            logger.info(model.activations[layer].shape)
-            logger.info(x.shape)
+            #logger.info(model.activations[layer].shape)
+            #logger.info(x.shape)
             
             # compute the cost and grad of the cost w.r.t y
             cost = model.cost.cost(y, x)
@@ -377,7 +390,7 @@ class SGDOptimiser(Optimiser):
                 model.layers[i].set_params(uparams)
 
             nll_list.append(cost)
-            acc_list.append(numpy.mean(self.classification_accuracy(y, t)))
+            acc_list.append(numpy.mean(self.classification_accuracy(y, x)))
 
         #compute the prior penalties contribution (parameter dependent only)
         prior_costs = Optimiser.compute_prior_costs(model, self.l1_weight, self.l2_weight)
