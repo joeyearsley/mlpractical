@@ -80,8 +80,11 @@ def my1_conv2d(image, kernels, strides=(1, 1)):
                     imgSlice = image[img, :, x:x+kxdim, y:y+kydim]
                     #Get kernels accross all channels.
                     kernel = kernels[:, fm, :, :]
-                    #Do the dot product to get the position.
-                    output[batch_size, fm, x, y] = numpy.dot(imgSlice.flattern(),kernel.flattern())
+                    '''
+                    Do the dot product to get the position.
+                    Add the bias - Remember to add in!
+                    '''
+                    output[img, fm, x, y] = numpy.dot(imgSlice.flattern(),kernel.flattern())
                 
     return output
 

@@ -6,10 +6,10 @@ import scipy.ndimage
 import time
 import logging
 
-from mlp.layers import MLP,Sigmoid
+from mlp.layers import MLP,Sigmoid,Softmax
 from mlp.dataset import DataProvider
 from mlp.schedulers import LearningRateScheduler
-from mlp.costs import MSECost
+from mlp.costs import MSECost, CECost
 #Import random int for helping to randomly add augmentation
 from random import randint
 
@@ -256,6 +256,7 @@ class SGDOptimiser(Optimiser):
         
         for x,t in train_iterator:
             inputs.append(x)
+        
         '''
             
         '''
@@ -414,3 +415,171 @@ class SGDOptimiser(Optimiser):
         training_cost = numpy.mean(nll_list) + sum(prior_costs)
 
         return training_cost, numpy.mean(acc_list)
+
+    
+    '''
+        Pretrain using auto-encoders, go through until final layer training for certain amount of epochs.
+        Then fine tune by adding final layer and doing standard backprop.
+    '''
+    def pretrain_discriminative(self, model, train_iterator, valid_iterator=None):
+        converged = False
+        cost_name = model.cost.get_name()
+        tr_stats, valid_stats = [], []
+        rng = numpy.random.RandomState([2015,10,10])
+        
+        
+        """
+        Do the below for each layer
+        """
+        
+        layers = model.layers
+        
+        #Train first layer normally, then build on top.
+        #Remember to add noise - add option to reset, to with noise, allow gaussian noise to be added.
+        #Remember sigmoid cost to implement.
+        
+        #MSE still, so don't use actual models
+        cost = CECost()
+        #define the temporary model
+        trainingModel = MLP(cost=cost)
+        #Empty list to keep consistent inputs
+        inputs = []
+        
+        '''
+            Build up inputs for epochs, only interested in x.
+        '''
+        
+        for x,t in train_iterator:
+            inputs.append((x,t))
+        
+        '''
+            
+        '''
+        
+        for i in range(0,len(layers)-1):
+            logger.info("Max epochs %i",self.lr_scheduler.max_epochs)
+            self.lr_scheduler.reset()
+            logger.info("epochs %i",self.lr_scheduler.epoch)
+            converged = False
+            
+            logger.info("Running")
+            '''
+                Make new model
+                Add layer[i] + output Layer(of size layer[i-1])
+                pretrain
+                take trained layers params
+                model.layers[i].setParams = trainedParams
+                Re-iterate until finished
+            '''
+            # Constant out dimensions is equal to the bias of the current layer we wish to add.
+            oudim = layers[i].odim
+            #If i-1 is zero we have idim of 784, else we have idim of previous layers odim
+            if(i == 0):
+                trainingModel.add_layer(Sigmoid(idim=784, odim=oudim, rng=rng))
+                trainingModel.add_layer(Softmax(idim=oudim, odim=10, rng=rng))
+            else:
+                #in dimension is previous layers odim, which is equal to the size of the bias array.
+                indim = layers[i].idim
+                trainingModel.add_layer(Sigmoid(idim=indim, odim=oudim, rng=rng))
+                trainingModel.add_layer(Softmax(idim=oudim, odim=10, rng=rng))
+            
+            #No need to validate in pretrain
+            
+            while not converged:
+                train_iterator.reset()
+
+                tstart = time.clock()
+                #Pass inputs instead of train iterator.
+                tr_nll, tr_acc = self.pretrain_epoch_discriminative(model=trainingModel,
+                                                  train_iterator=inputs,
+                                                  learning_rate=self.lr_scheduler.get_rate(), layer=i)
+                tstop = time.clock()
+                tr_stats.append((tr_nll, tr_acc))
+
+                logger.info('Epoch %i: Training cost (%s) is %.3f. Accuracy is %.2f%%'
+                            % (self.lr_scheduler.epoch + 1, cost_name, tr_nll, tr_acc * 100.))
+
+                # we stop training when learning rate, as returned by lr scheduler, is 0
+                # this is implementation dependent and depending on lr schedule could happen,
+                # for example, when max_epochs has been reached or if the progress between
+                # two consecutive epochs is too small, etc.
+                converged = (self.lr_scheduler.get_next_rate(tr_acc) == 0)
+            
+            
+            #Now set parameters of layer we added.
+            model.layers[i].set_params(trainingModel.layers[i].get_params())
+            
+            logger.info('activations %i',len(trainingModel.activations))
+            #Remove activation as we aren't interested in the final activation
+            trainingModel.activations = trainingModel.activations[:-1]
+            logger.info('activations2 %i',len(trainingModel.activations))
+            
+            #Now remove final layer as we aren't interested in it.
+            trainingModel.set_layers(trainingModel.layers[:-1])
+                
+        self.lr_scheduler.reset()
+                    
+        #Return at end?
+        return tr_stats, valid_stats
+        
+
+    def pretrain_epoch_discriminative(self, model, train_iterator, learning_rate, layer):
+        
+        self.rng = numpy.random.RandomState([2015,10,10])
+        assert isinstance(model, MLP), (
+            "Expected model to be a subclass of 'mlp.layers.MLP'"
+            " class but got %s " % type(model)
+        )
+        
+        acc_list, nll_list = [], []
+        
+        
+        #Next epoch, next dropout rate if annealed.
+        if self.dp_scheduler is not None:
+            self.dp_scheduler.get_next_rate()
+        
+        #Do this for max_epochs?
+        #Move to the function to pretrain to ensure same images, then just pass the correct list each epoch.
+        #Replacing the x,t
+        for x,t in train_iterator:
+            
+            # Get the prediction, use noise if specified
+            if self.dp_scheduler is not None:
+                y = model.fprop_dropout(x, self.dp_scheduler)
+            else:
+                y = model.fprop(x)
+            
+            
+            # compute the cost and grad of the cost w.r.t y, still use original
+            cost = model.cost.cost(y, t)
+            cost_grad = model.cost.grad(y, t)
+
+            # do backward pass through the 2 layers we are interested in.
+            model.bprop(cost_grad, self.dp_scheduler, pretrain=True)
+            
+            #update the model, here we iterate over layers
+            #and then over each parameter in the layer
+            effective_learning_rate = learning_rate / x.shape[0]
+            
+            #Loop through current layer and end
+            for i in xrange(len(model.layers)-2, len(model.layers)):
+                params = model.layers[i].get_params()
+                grads = model.layers[i].pgrads(inputs=model.activations[i],
+                                               deltas=model.deltas[i + 1],
+                                               l1_weight=self.l1_weight,
+                                               l2_weight=self.l2_weight)
+                uparams = []
+                for param, grad in zip(params, grads):
+                    param = param - effective_learning_rate * grad
+                    uparams.append(param)
+                model.layers[i].set_params(uparams)
+
+            nll_list.append(cost)
+            acc_list.append(numpy.mean(self.classification_accuracy(y, t)))
+
+        #compute the prior penalties contribution (parameter dependent only)
+        prior_costs = Optimiser.compute_prior_costs(model, self.l1_weight, self.l2_weight)
+        training_cost = numpy.mean(nll_list) + sum(prior_costs)
+
+        return training_cost, numpy.mean(acc_list)
+
