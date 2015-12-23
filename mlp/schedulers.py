@@ -82,7 +82,7 @@ class LearningRateExponential(LearningRateScheduler):
     
     def reset(self):
         self.rate = self.start_rate
-        self.epoch = 1
+        self.epoch = 0
         
     def get_rate(self):
         if (self.epoch == 1 and self.zero_rate!=None):
@@ -216,32 +216,85 @@ class DropoutFixed(LearningRateList):
     def get_next_rate(self, current_accuracy=None):
         return self.get_rate()
     
-class DropoutAnnealed(LearningRateList):
 
+class DropoutAnnealed(LearningRateList):
+    '''
+
+    Increase till 1, extends learning rate list to keep dropout values in order.
+    Increases till 1, so that when other pieces of code do:
+        p_inp_keep * layer will always return the layer.
+    
+    '''
     def __init__(self, p_inp_keep, p_hid_keep, constant_to_reduce):
+        '''
+        
+            :type p_inp_keep: float
+            :param p_inp_keep: Initial input layers' probability of dropout
+            
+            :type p_hid_keep: float
+            :param p_hid_keep: Initial hidden layers' probability of dropout
+            
+            :type constant_to_reduce: float
+            :param constant_to_reduce: Constant by which to increase at each epoch, until we reach 1
+        
+        '''
+        
+        #Assertion to ensure probabilities are good to use
         assert 0 < p_inp_keep <= 1 and 0 < p_hid_keep <= 1, (
             "Dropout 'keep' probabilites are suppose to be in (0, 1] range"
         )
         
         self.lr_temp = []
-        #Build up learning rates 
-        while(p_inp_keep < 1 and p_hid_keep < 1):
+        
+        if p_inp_keep > p_hid_keep
+            while(p_hid_keep < 1):
+                #Do in this order to stop probabilities larger than 1 being appended.
                 self.lr_temp.append((p_inp_keep, p_hid_keep))
+                '''
+                    Want to check that the input prob is still under one, if we add to it
+                    if it's not then we set to the upper bound of 1.
+                '''
+                if (p_inp_keep + constant_to_reduce) < 1:
+                    p_inp_keep = p_inp_keep + constant_to_reduce
+                else:
+                    p_inp_keep = 1
+                p_hid_keep = p_hid_keep + constant_to_reduce
+        elif p_inp_keep < p_hid_keep
+            while(p_inp_keep < 1):
+                #Do in this order to stop probabilities larger than 1 being appended.
+                self.lr_temp.append((p_inp_keep, p_hid_keep))
+                '''
+                    Want to check that the hidden prob is still under one, if we add to it
+                    if it's not then we set to the upper bound of 1.
+                '''
+                if (p_hid_keep + constant_to_reduce) < 1:
+                    p_hid_keep = p_hid_keep + constant_to_reduce
+                else:
+                    p_hid_keep = 1
+                p_inp_keep = p_inp_keep + constant_to_reduce
+        else
+            while(p_inp_keep < 1 and p_hid_keep < 1):
+                #Do in this order to stop probabilities larger than 1 being appended.
+                self.lr_temp.append((p_inp_keep, p_hid_keep))
+                #Drop out annealed is supposed to increase by a constant amount.
                 p_inp_keep = p_inp_keep + constant_to_reduce
                 p_hid_keep = p_hid_keep + constant_to_reduce
-                
+        
+        # Add the upperbounds anyway, as this is what the last one *should* be.
         self.lr_temp.append((1, 1))
         
         super(DropoutAnnealed, self).__init__(self.lr_temp, max_epochs=999)
         
       
     def get_rate(self):
+        #Return the current dropout rate
         return self.lr_list[self.epoch]
 
     def get_next_rate(self, current_accuracy=None):
+        # Not ran out of rates yet so return
         if(self.epoch == len(self.lr_list)-1):
             return self.lr_list[self.epoch]
-        # Update the next rate
+        # Increase epochs so the next rate is used.
         self.epoch += 1
-        
+        #Returns the last rate
         return self.lr_list[self.epoch]

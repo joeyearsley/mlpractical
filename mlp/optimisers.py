@@ -116,7 +116,10 @@ class SGDOptimiser(Optimiser):
 
         acc_list, nll_list = [], []
         
-        #Next epoch, next dropout rate if annealed.
+        '''
+            Next epoch, next dropout rate if annealed, otherwise it just returns the dropout rate.
+            Increments the epoch in the dropout scheduler so the next one is used.
+        '''
         if self.dp_scheduler is not None:
             self.dp_scheduler.get_next_rate()
         
