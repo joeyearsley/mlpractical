@@ -246,7 +246,7 @@ class DropoutAnnealed(LearningRateList):
         
         self.lr_temp = []
         
-        if p_inp_keep > p_hid_keep
+        if p_inp_keep > p_hid_keep:
             while(p_hid_keep < 1):
                 #Do in this order to stop probabilities larger than 1 being appended.
                 self.lr_temp.append((p_inp_keep, p_hid_keep))
@@ -259,7 +259,7 @@ class DropoutAnnealed(LearningRateList):
                 else:
                     p_inp_keep = 1
                 p_hid_keep = p_hid_keep + constant_to_reduce
-        elif p_inp_keep < p_hid_keep
+        elif p_inp_keep < p_hid_keep:
             while(p_inp_keep < 1):
                 #Do in this order to stop probabilities larger than 1 being appended.
                 self.lr_temp.append((p_inp_keep, p_hid_keep))
@@ -272,7 +272,7 @@ class DropoutAnnealed(LearningRateList):
                 else:
                     p_hid_keep = 1
                 p_inp_keep = p_inp_keep + constant_to_reduce
-        else
+        else:
             while(p_inp_keep < 1 and p_hid_keep < 1):
                 #Do in this order to stop probabilities larger than 1 being appended.
                 self.lr_temp.append((p_inp_keep, p_hid_keep))

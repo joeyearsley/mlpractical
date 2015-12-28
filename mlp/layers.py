@@ -148,6 +148,11 @@ class MLP(object):
             p_inp, p_hid = dp_scheduler.get_rate()
             p_hid_scaler /= p_hid
             
+        '''
+            If pretraining is set to true, then we are pre-training, hence only consider the
+                final 2 layers (output layer and final hidden layer)
+            
+        '''
         if(pretrain):
             i = top_layer_idx - 1
             self.deltas[i], ograds = self.layers[i - 1].\

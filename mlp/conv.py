@@ -171,9 +171,86 @@ class ConvMaxPool2D(Layer):
         super(ConvMaxPool2D, self).__init__(rng=None)
         raise NotImplementedError()
 
+        
+    def my1_conv2d(image, kernels, strides=(1, 1)):
+        """
+        Implements a 2d valid convolution of kernels with the image
+        Note: filter means the same as kernel and convolution (correlation) of those with the input space
+        produces feature maps (sometimes refered to also as receptive fields). Also note, that
+        feature maps are synonyms here to channels, and as such num_inp_channels == num_inp_feat_maps
+        :param image: 4D tensor of sizes (batch_size, num_input_channels, img_shape_x, img_shape_y)
+        :param filters: 4D tensor of filters of size (num_inp_feat_maps, num_out_feat_maps, kernel_shape_x, kernel_shape_y)
+        :param strides: a tuple (stride_x, stride_y), specifying the shift of the kernels in x and y dimensions
+        :return: 4D tensor of size (batch_size, num_out_feature_maps, feature_map_shape_x, feature_map_shape_y)
+        """
+
+        '''
+            Implement Convoloution here, passing back the convolutions here?
+        '''
+
+        #Get batch_size out
+        batch_size = image.shape[0]
+
+        '''
+
+        Image dims - Used equation from stanford lectures: http://cs231n.github.io/convolutional-networks/
+        if((InputSize−FilterSize+2Padding)/Stride+1) is valid int then carry on else throw and error, first calculate
+
+        '''
+
+        #Padding not implemented
+        padding = 0
+
+        #Get kernel sizes
+        kxdim = kernels.shape[2]
+        kydim = kernels.shape[3]
+
+        #Can calculate here as this is all we are going to go to anyway.
+        xdims = ((image.shape[2] - kxdim + (2*padding))/strides[0])+1
+        ydims = ((image.shape[3] - kydim + (2*padding))/strides[1])+1
+
+        #Do assertions to ensure passed in the correct type.
+        assert type(xdims) is IntType,"Can't make feature map with x-stride: %r" % strides[0]
+        assert type(ydims) is IntType,"Can't make feature map with y-stride: %r" % strides[1]
+
+        #Get feature map size out
+        num_out_feat_maps = kernels.shape[1]
+        #Get input feature size
+        num_inp_feat_maps = kernels.shape[0]
+
+        #Create empty 4D tensor
+        output =  np.zeros((batch_size,out,xdims,ydims))
+
+        #For each image in batch
+        for img in xrange(batch_size)
+            #For each feature map (output map)
+            for fm in xrange(num_out_feat_maps)
+                #For each x-dim in output
+                for x in xrange(xdims)
+                    #For each y-dim in output
+                    for y in xrange(ydims)
+                        #Get image slice from entire image, corresponds to kernel size, accross all channels.
+                        imgSlice = image[img, :, x:x+kxdim, y:y+kydim]
+                        #Get kernels accross all channels.
+                        kernel = kernels[:, fm, :, :]
+                        '''
+                            Get max here, no need for kernel just max from img slice then save a 1 into that co-ord into G 
+                               mat.
+                            USE max_and_argmax from the layers class to return the indices and max from imgSlice
+                            Can do over multiple images at once?
+                        '''
+                        output[img, fm, x, y] = numpy.dot(imgSlice.flattern(),kernel.flattern())
+
+        return output
+    
     def fprop(self, inputs):
         raise NotImplementedError()
 
+        '''
+            Should get max from 2x2 kernel, implement normally then try to use function above.
+        '''
+        
+        
     def bprop(self, h, igrads):
         raise NotImplementedError()
 

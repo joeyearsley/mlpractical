@@ -31,8 +31,8 @@ learningList = []
 decrement = (learning_rate/max_epochs)
 
 #Regulariser weights
-l1_weight = 0.001
-l2_weight = 0.000
+l1_weight = 0.000
+l2_weight = 0.001
 dp_scheduler = None
 
 #Build list once so we don't have to rebuild every time.
@@ -101,8 +101,8 @@ for layer in xrange(0,3):
     #Append stats for all test
     stats.append((tr_stats, valid_stats, (tst_cost, tst_accuracy)))
 
-    #Should save rate to specific dictionairy in pickle
-    shelve_r['l1'+str(layer)] = (tr_stats, valid_stats, (tst_cost, tst_accuracy))
+    #Should save rate to specific dictionairy in pickle, different key so same shelving doesn't matter
+    shelve_r['l2'+str(layer)] = (tr_stats, valid_stats, (tst_cost, tst_accuracy))
 
 logger.info('Saving Data')
 shelve_r.close()   

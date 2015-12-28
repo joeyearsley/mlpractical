@@ -18,31 +18,43 @@ def noAug(self,imgs):
     return imgs
 
 #Add Gaussian noise
-def gaussianBlur(self,img):
-    pd = (randint(0,5)/10)
-    #Apply gaussian blur
-    return scipy.ndimage.gaussian_filter(img, sigma=pd)
+def gaussianBlur(self,imgs):
+    ret = []
+    for img in imgs:
+        pd = (randint(0,5)/10)
+        #Apply gaussian blur and save normal image also
+        ret.append(scipy.ndimage.gaussian_filter(img, sigma=pd))
+    return ret
 
 #Rotate by a random number    
-def rotate(self,img):
-    '''
-       Rotate randomly, only worthwile between [-10,10], otherwise it's hard to keep it central.
-           Increase if you don't mind some figures having tips cut off.
-           Re-size back to normal size of arrays given, then flatten back to 784.
-    '''
-    temp = scipy.ndimage.interpolation.rotate(img, randint(-10,10))[0:28,0:28].copy()
-    return temp.flatten()
+def rotate(self,imgs):
+    ret = []
+    for img in imgs:
+        '''
+           Rotate randomly, only worthwile between [-10,10], otherwise it's hard to keep it central.
+               Increase if you don't mind some figures having tips cut off.
+               Re-size back to normal size of arrays given, then flatten back to 784.
+        '''
+        temp = scipy.ndimage.interpolation.rotate(img, randint(-10,10))[0:28,0:28].copy()
+        ret.append(temp.flatten())
+    return ret
 
 #Drop pixels randomly
-def dropPixels(self,img):
-    #Don't want to much random dropout, so we allow for it to between [0.5,1]
-    pd = 1-(randint(0,5)/10)
-    d = self.rng.binomial(1, pd, img.shape)
-    return d*img
+def dropPixels(self,imgs):
+    ret = []
+    for img in imgs:
+        #Don't want to much random dropout, so we allow for it to between [0.5,1]
+        pd = 1-(randint(0,5)/10)
+        d = self.rng.binomial(1, pd, img.shape)
+        ret.append(d*img)
+    return ret
 
 #Shift the image either left or right by a few dimensions
 def shiftImg(self,img):
-    return numpy.roll(imgs, randint(-5,5))
+    ret = []
+    for img in imgs:
+        ret.append(numpy.roll(imgs, randint(-5,5)))
+    return ret
 
 
 class DataProvider(object):
@@ -214,9 +226,27 @@ class MNISTDataProvider(DataProvider):
         options = {0 : noAug, 1: gaussianBlur, 2: rotate, 3: dropPixels, 4: shiftImg}
         
         if self.augmentation == 5:
-            rval_x = options[randint(0,4)](self, rval_x)
+            ret = []
+            '''
+                For each image in rval_x, apply a random data augmentation, then add back into batch to return
+            '''
+            for img in rval_x:
+                #Do for loop here to randomise in the for
+                ret.append(options[randint(0,4)](self, rval_x))
+            #Set back    
+            rval_x = ret
+        #Add else if 6, then apply all 
+        elif self.augmentation == 6:
+            ret = []
+            for img in rval_x:
+                #Apply all augmentations
+                for i in xrange(0,5):
+                    ret.extend(options[i](self, rval_x))
+            #extend the original batch with all augmented versions        
+            rval_x.extend(ret)
         else:
-            rval_x = options[self.augmentation](self, rval_x)
+            #Increase normal batch with augmented batch also
+            rval_x.extend(options[self.augmentation](self, rval_x))
         
         if self.conv_reshape:
             rval_x = rval_x.reshape(self.batch_size, 1, 28, 28)

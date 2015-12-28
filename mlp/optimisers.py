@@ -449,7 +449,7 @@ class SGDOptimiser(Optimiser):
         inputs = []
         
         '''
-            Build up inputs for epochs, only interested in x.
+            Build up inputs for epochs, need to be fixed still to pre-train effectively.
         '''
         
         for x,t in train_iterator:
