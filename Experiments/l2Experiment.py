@@ -24,7 +24,7 @@ rng = numpy.random.RandomState([2015,10,10])
 
 #some hyper-parameters
 nhid = 800
-max_epochs = 20
+max_epochs = 50
 cost = CECost()
 learning_rate = 0.5;
 learningList = []
@@ -86,7 +86,7 @@ for layer in xrange(0,3):
         lr_scheduler = LearningRateNewBob(start_rate=learning_rate, max_epochs=max_epochs,\
                                           min_derror_stop=.05, scale_by=0.05, zero_rate=learning_rate, patience = 10)
 
-    optimiser =   optimiser = SGDOptimiser(lr_scheduler=lr_scheduler, 
+    optimiser = SGDOptimiser(lr_scheduler=lr_scheduler, 
                              dp_scheduler=dp_scheduler,
                              l1_weight=l1_weight, 
                              l2_weight=l2_weight)

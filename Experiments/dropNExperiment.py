@@ -5,7 +5,7 @@ from mlp.layers import MLP, Linear, Sigmoid, Softmax #import required layer type
 from mlp.optimisers import SGDOptimiser #import the optimiser
 
 from mlp.costs import CECost #import the cost we want to use for optimisation
-from mlp.schedulers import LearningRateExponential, LearningRateFixed, LearningRateList, LearningRateNewBob
+from mlp.schedulers import LearningRateExponential, LearningRateFixed, LearningRateList, LearningRateNewBob, DropoutFixed
 
 import numpy
 import logging
@@ -31,9 +31,9 @@ learningList = []
 decrement = (learning_rate/max_epochs)
 
 #Regulariser weights
-l1_weight = 0.001
+l1_weight = 0.000
 l2_weight = 0.000
-dp_scheduler = None
+dp_scheduler = DropoutFixed(0.5, 0.5)
 
 #Build list once so we don't have to rebuild every time.
 for i in xrange(0,max_epochs):
@@ -101,8 +101,8 @@ for layer in xrange(0,3):
     #Append stats for all test
     stats.append((tr_stats, valid_stats, (tst_cost, tst_accuracy)))
 
-    #Should save rate to specific dictionairy in pickle
-    shelve_r['l1'+str(layer)] = (tr_stats, valid_stats, (tst_cost, tst_accuracy))
+    #Should save rate to specific dictionairy in pickle, different key so same shelving doesn't matter
+    shelve_r['dropN'+str(layer)] = (tr_stats, valid_stats, (tst_cost, tst_accuracy))
 
 logger.info('Saving Data')
 shelve_r.close()   

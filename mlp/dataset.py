@@ -18,43 +18,29 @@ def noAug(self,imgs):
     return imgs
 
 #Add Gaussian noise
-def gaussianBlur(self,imgs):
-    ret = []
-    for img in imgs:
-        pd = (randint(0,5)/10)
-        #Apply gaussian blur and save normal image also
-        ret.append(scipy.ndimage.gaussian_filter(img, sigma=pd))
-    return ret
+def gaussianBlur(self,img):
+    pd = (randint(0,5)/10)
+    return scipy.ndimage.gaussian_filter(img, sigma=pd)
 
 #Rotate by a random number    
-def rotate(self,imgs):
-    ret = []
-    for img in imgs:
-        '''
+def rotate(self,img):
+    '''
            Rotate randomly, only worthwile between [-10,10], otherwise it's hard to keep it central.
                Increase if you don't mind some figures having tips cut off.
                Re-size back to normal size of arrays given, then flatten back to 784.
-        '''
-        temp = scipy.ndimage.interpolation.rotate(img, randint(-10,10))[0:28,0:28].copy()
-        ret.append(temp.flatten())
-    return ret
+    '''
+    temp = scipy.ndimage.interpolation.rotate(img, randint(-10,10))[0:28,0:28].copy()
+    return temp.flatten()
 
 #Drop pixels randomly
-def dropPixels(self,imgs):
-    ret = []
-    for img in imgs:
-        #Don't want to much random dropout, so we allow for it to between [0.5,1]
-        pd = 1-(randint(0,5)/10)
-        d = self.rng.binomial(1, pd, img.shape)
-        ret.append(d*img)
-    return ret
+def dropPixels(self,img):
+    pd = 1-(randint(0,5)/10)
+    d = self.rng.binomial(1, pd, img.shape)
+    return d*img
 
 #Shift the image either left or right by a few dimensions
 def shiftImg(self,img):
-    ret = []
-    for img in imgs:
-        ret.append(numpy.roll(imgs, randint(-5,5)))
-    return ret
+    return numpy.roll(img, randint(-5,5))
 
 
 class DataProvider(object):
@@ -184,7 +170,7 @@ class MNISTDataProvider(DataProvider):
         super(MNISTDataProvider, self).reset()
         if self.randomize:
             self._rand_idx = self.__randomize()
-
+            
     def __randomize(self):
         assert isinstance(self.x, numpy.ndarray)
 
@@ -226,27 +212,44 @@ class MNISTDataProvider(DataProvider):
         options = {0 : noAug, 1: gaussianBlur, 2: rotate, 3: dropPixels, 4: shiftImg}
         
         if self.augmentation == 5:
-            ret = []
+            ret_x = []
+            ret_t = []
             '''
                 For each image in rval_x, apply a random data augmentation, then add back into batch to return
             '''
-            for img in rval_x:
-                #Do for loop here to randomise in the for
-                ret.append(options[randint(0,4)](self, rval_x))
+            for idx,img in enumerate(rval_x):
+                ret_t.append(rval_t[idx])
+                ret_t.append(rval_t[idx])
+                ret_x.append(img)
+                ret_x.append(options[randint(0,4)](self, img))
             #Set back    
-            rval_x = ret
+            rval_x = numpy.array(ret_x)
+            rval_t = numpy.array(ret_t)
         #Add else if 6, then apply all 
         elif self.augmentation == 6:
-            ret = []
-            for img in rval_x:
+            ret_x = []
+            ret_t = []
+            for idx,img in enumerate(rval_x):
+                ret_t.append(rval_t[idx])
+                ret_t.append(rval_t[idx])
+                ret_x.append(img)
                 #Apply all augmentations
                 for i in xrange(0,5):
-                    ret.extend(options[i](self, rval_x))
+                    ret_x.append(options[i](self, img))
             #extend the original batch with all augmented versions        
-            rval_x.extend(ret)
+            rval_x = numpy.array(ret_x)
+            rval_t = numpy.array(ret_t)
         else:
-            #Increase normal batch with augmented batch also
-            rval_x.extend(options[self.augmentation](self, rval_x))
+            ret_x = []
+            ret_t = []
+            for idx,img in enumerate(rval_x):
+                ret_t.append(rval_t[idx])
+                ret_t.append(rval_t[idx])
+                ret_x.append(img)
+                ret_x.append(options[self.augmentation](self, img))
+            #extend the original batch with all augmented versions    
+            rval_x = numpy.array(ret_x)
+            rval_t = numpy.array(ret_t)
         
         if self.conv_reshape:
             rval_x = rval_x.reshape(self.batch_size, 1, 28, 28)

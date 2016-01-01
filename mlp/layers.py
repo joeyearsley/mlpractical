@@ -285,7 +285,7 @@ class Linear(Layer):
         #input comes from 4D convolutional tensor, reshape to expected shape
         if inputs.ndim == 4:
             inputs = inputs.reshape(inputs.shape[0], -1)
-            
+        
         a = numpy.dot(inputs, self.W) + self.b
         # here f() is an identity function, so just return a linear transformation
         return a
