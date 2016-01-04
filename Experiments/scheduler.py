@@ -21,7 +21,7 @@ rng = numpy.random.RandomState([2015,10,10])
 
 #some hyper-parameters
 nhid = 800
-max_epochs = 20
+max_epochs = 50
 cost = CECost()
 
 learning_rate = 0.5;
@@ -61,15 +61,18 @@ for layer in xrange(0,3):
         #define the model
         model = MLP(cost=cost)
         
-        if layer >= 0:
+        if layer == 0:
             odim = 800
             model.add_layer(Sigmoid(idim=784, odim=odim, irange=0.2, rng=rng))
-        if layer >= 1:
+        if layer == 1:
             odim = 600
-            model.add_layer(Sigmoid(idim=800, odim=600, irange=0.2, rng=rng))
-        elif layer == 2:
+            model.add_layer(Sigmoid(idim=784, odim=600, irange=0.2, rng=rng))
+            model.add_layer(Sigmoid(idim=600, odim=600, irange=0.2, rng=rng))
+        if layer == 2:
             odim = 400
-            model.add_layer(Sigmoid(idim=600, odim=odim, irange=0.2, rng=rng))
+            model.add_layer(Sigmoid(idim=784, odim=odim, irange=0.2, rng=rng))
+            model.add_layer(Sigmoid(idim=400, odim=odim, irange=0.2, rng=rng))
+            model.add_layer(Sigmoid(idim=400, odim=odim, irange=0.2, rng=rng))
         
         #Add output layer
         model.add_layer(Softmax(idim=odim, odim=10, rng=rng))

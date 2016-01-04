@@ -14,33 +14,47 @@ from random import randint
 logger = logging.getLogger(__name__)
 
 #No Augmentation so we just return the originals
-def noAug(self,imgs):
+def noAug(self,imgs, am):
     return imgs
 
 #Add Gaussian noise
-def gaussianBlur(self,img):
-    pd = (randint(0,5)/10)
+def gaussianBlur(self,img, am):
+    if am == 0:
+        pd = (randint(0,5)/10)
+    else:
+        pd = (am/10)
     return scipy.ndimage.gaussian_filter(img, sigma=pd)
 
 #Rotate by a random number    
-def rotate(self,img):
+def rotate(self,img,am):
     '''
            Rotate randomly, only worthwile between [-10,10], otherwise it's hard to keep it central.
                Increase if you don't mind some figures having tips cut off.
                Re-size back to normal size of arrays given, then flatten back to 784.
     '''
-    temp = scipy.ndimage.interpolation.rotate(img, randint(-10,10))[0:28,0:28].copy()
+    img = img.reshape(28,28)
+    if am == 0:
+        temp = scipy.ndimage.interpolation.rotate(img, randint(-10,10))
+    else:
+        temp = scipy.ndimage.interpolation.rotate(img, am)
+    temp = temp[0:28,0:28].copy()
     return temp.flatten()
 
 #Drop pixels randomly
-def dropPixels(self,img):
-    pd = 1-(randint(0,5)/10)
+def dropPixels(self,img,am):
+    if am == 0:
+        pd = 1-(randint(0,5)/10)
+    else:
+        pd = 1-(am/10)
     d = self.rng.binomial(1, pd, img.shape)
     return d*img
 
 #Shift the image either left or right by a few dimensions
-def shiftImg(self,img):
-    return numpy.roll(img, randint(-5,5))
+def shiftImg(self,img, am):
+    if am == 0:
+        return numpy.roll(img, randint(-5,5))
+    else:
+        return numpy.roll(img, am)
 
 
 class DataProvider(object):
@@ -114,7 +128,8 @@ class MNISTDataProvider(DataProvider):
                  max_num_batches=-1,
                  max_num_examples=-1,
                  randomize=True,
-                 augmentation=0,
+                 augmentation= 0,
+                 aug_amount = 0,
                  rng=None,
                  conv_reshape=False):
 
@@ -131,10 +146,20 @@ class MNISTDataProvider(DataProvider):
         )
         
         #Assertion to see what type of augmentation we wish to use.
-        assert (-1 < augmentation and augmentation < 6),(
+        assert (-1 < augmentation and augmentation < 7),(
             "augmentation should be between 0 and 5, where 0 - noAug, 1 - gaussianBlur, 2 - rotate,\
-                3 - dropPixels, 4 - shiftImg" 
+                3 - dropPixels, 4 - shiftImg, 5 - random, 6 - all augmentations" 
         )
+        
+        #Assertions to check viable augmentation
+        if augmentation == 1:
+            assert (aug_amount>-1 and aug_amount < 6),("aug amount should be between 0 and 5")
+        if augmentation == 2:
+            assert (aug_amount>-11 and aug_amount < 11),("aug amount should be between -10 and 10")
+        if augmentation == 3:
+            assert (aug_amount>-1 and aug_amount < 6),("aug amount should be between 0 and 5")
+        if augmentation == 4:
+            assert (aug_amount>-6 and aug_amount < 6),("aug amount should be between -5 and 5")
         
         if max_num_batches > 0 and max_num_examples > 0:
             logger.warning("You have specified both 'max_num_batches' and " \
@@ -160,6 +185,7 @@ class MNISTDataProvider(DataProvider):
         self.num_classes = 10
         #Set augmentation to [0,5], default is 0 - no Aug, look at the options below for more
         self.augmentation = augmentation
+        self.aug_amount = aug_amount
         self.conv_reshape = conv_reshape
 
         self._rand_idx = None
@@ -221,7 +247,7 @@ class MNISTDataProvider(DataProvider):
                 ret_t.append(rval_t[idx])
                 ret_t.append(rval_t[idx])
                 ret_x.append(img)
-                ret_x.append(options[randint(0,4)](self, img))
+                ret_x.append(options[randint(0,4)](self, img, 0))
             #Set back    
             rval_x = numpy.array(ret_x)
             rval_t = numpy.array(ret_t)
@@ -230,12 +256,14 @@ class MNISTDataProvider(DataProvider):
             ret_x = []
             ret_t = []
             for idx,img in enumerate(rval_x):
-                ret_t.append(rval_t[idx])
-                ret_t.append(rval_t[idx])
-                ret_x.append(img)
+                #no need for this as it is applied in no aug.
+                #ret_x.append(img)
                 #Apply all augmentations
                 for i in xrange(0,5):
-                    ret_x.append(options[i](self, img))
+                    #Add all t's
+                    ret_t.append(rval_t[idx])
+                    #Learn to use the best value found
+                    ret_x.append(options[i](self, img, 0))
             #extend the original batch with all augmented versions        
             rval_x = numpy.array(ret_x)
             rval_t = numpy.array(ret_t)
@@ -246,7 +274,8 @@ class MNISTDataProvider(DataProvider):
                 ret_t.append(rval_t[idx])
                 ret_t.append(rval_t[idx])
                 ret_x.append(img)
-                ret_x.append(options[self.augmentation](self, img))
+                #Otherwise  use value passed
+                ret_x.append(options[self.augmentation](self, img, self.aug_amount))
             #extend the original batch with all augmented versions    
             rval_x = numpy.array(ret_x)
             rval_t = numpy.array(ret_t)

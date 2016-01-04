@@ -1,6 +1,3 @@
-# %load Experiments/scheduler.py
-#Baseline experiment
-
 from mlp.layers import MLP, Linear, Sigmoid, Softmax #import required layer types
 from mlp.optimisers import SGDOptimiser #import the optimiser
 
@@ -16,7 +13,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.info('Initialising data providers...')
 
-train_dp = MNISTDataProvider(dset='train', batch_size=100, max_num_batches=1000, randomize=True)
+train_dp = MNISTDataProvider(dset='train', batch_size=100, max_num_batches=1000, randomize=True, augmentation = 3)
 valid_dp = MNISTDataProvider(dset='valid', batch_size=10000, max_num_batches=-10, randomize=False)
 test_dp = MNISTDataProvider(dset='eval', batch_size=10000, max_num_batches=-10, randomize=False)
 
@@ -24,15 +21,15 @@ rng = numpy.random.RandomState([2015,10,10])
 
 #some hyper-parameters
 nhid = 800
-max_epochs = 50
+max_epochs = 20
 cost = CECost()
 learning_rate = 0.5;
 learningList = []
 decrement = (learning_rate/max_epochs)
 
 #Regulariser weights
-l1_weight = 0.000
-l2_weight = 0.001
+l1_weight = 0.00
+l2_weight = 0.000
 dp_scheduler = None
 
 #Build list once so we don't have to rebuild every time.
@@ -47,10 +44,10 @@ for i in xrange(0,max_epochs):
 shelve_r = shelve.open("regExperiments")
 
 stats = []
-rate = 1
+rate = 2
 
 #For each number of layers, new model add layers.
-for layer in xrange(0,4):
+for layer in xrange(0,1):
     #Set here in case we alter it in a layer experiment
     learning_rate = 0.5
 
@@ -67,7 +64,7 @@ for layer in xrange(0,4):
     if layer == 0:
         odim = 800
         model.add_layer(Sigmoid(idim=784, odim=odim, irange=0.2, rng=rng))
-    elif layer == 1:
+    if layer == 1:
         odim = 600
         model.add_layer(Sigmoid(idim=784, odim=600, irange=0.2, rng=rng))
         model.add_layer(Sigmoid(idim=600, odim=600, irange=0.2, rng=rng))
@@ -101,6 +98,9 @@ for layer in xrange(0,4):
                              dp_scheduler=dp_scheduler,
                              l1_weight=l1_weight, 
                              l2_weight=l2_weight)
+    
+    logger.info('Pre-Training started...')
+    tr_stats, valid_stats = optimiser.pretrain(model, train_dp, None,0)
 
     logger.info('Training started...')
     tr_stats, valid_stats = optimiser.train(model, train_dp, valid_dp)
@@ -112,8 +112,8 @@ for layer in xrange(0,4):
     #Append stats for all test
     stats.append((tr_stats, valid_stats, (tst_cost, tst_accuracy)))
 
-    #Should save rate to specific dictionairy in pickle, different key so same shelving doesn't matter
-    shelve_r['l2'+str(layer)] = (tr_stats, valid_stats, (tst_cost, tst_accuracy))
+    #Should save rate to specific dictionairy in pickle
+    shelve_r['dpAugExpF'+str(layer)] = (tr_stats, valid_stats, (tst_cost, tst_accuracy))
 
 logger.info('Saving Data')
 shelve_r.close()   

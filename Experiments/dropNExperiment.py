@@ -50,7 +50,7 @@ stats = []
 rate = 1
 
 #For each number of layers, new model add layers.
-for layer in xrange(0,3):
+for layer in xrange(0,4):
     #Set here in case we alter it in a layer experiment
     learning_rate = 0.5
 
@@ -64,15 +64,24 @@ for layer in xrange(0,3):
     #define the model
     model = MLP(cost=cost)
 
-    if layer >= 0:
+    if layer == 0:
         odim = 800
         model.add_layer(Sigmoid(idim=784, odim=odim, irange=0.2, rng=rng))
-    if layer >= 1:
+    elif layer == 1:
         odim = 600
-        model.add_layer(Sigmoid(idim=800, odim=600, irange=0.2, rng=rng))
+        model.add_layer(Sigmoid(idim=784, odim=600, irange=0.2, rng=rng))
+        model.add_layer(Sigmoid(idim=600, odim=600, irange=0.2, rng=rng))
     elif layer == 2:
         odim = 400
-        model.add_layer(Sigmoid(idim=600, odim=odim, irange=0.2, rng=rng))
+        model.add_layer(Sigmoid(idim=784, odim=odim, irange=0.2, rng=rng))
+        model.add_layer(Sigmoid(idim=odim, odim=odim, irange=0.2, rng=rng))
+        model.add_layer(Sigmoid(idim=odim, odim=odim, irange=0.2, rng=rng))
+    elif layer == 3:
+        odim = 300
+        model.add_layer(Sigmoid(idim=784, odim=odim, irange=0.2, rng=rng))
+        model.add_layer(Sigmoid(idim=odim, odim=odim, irange=0.2, rng=rng))
+        model.add_layer(Sigmoid(idim=odim, odim=odim, irange=0.2, rng=rng))
+        model.add_layer(Sigmoid(idim=odim, odim=odim, irange=0.2, rng=rng))
         
     #Add output layer
     model.add_layer(Softmax(idim=odim, odim=10, rng=rng))
@@ -80,6 +89,8 @@ for layer in xrange(0,3):
     #Set rate scheduler here
     if rate == 1:
         lr_scheduler = LearningRateExponential(start_rate=learning_rate, max_epochs=max_epochs, training_size=100)
+    elif rate == 2:
+        lr_scheduler = LearningRateFixed(learning_rate=learning_rate, max_epochs=max_epochs)    
     elif rate == 3:
         # define the optimiser, here stochasitc gradient descent
         # with fixed learning rate and max_epochs
