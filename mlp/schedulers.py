@@ -63,40 +63,51 @@ class LearningRateFixed(LearningRateList):
         return self.get_rate()
 
 class LearningRateExponential(LearningRateScheduler):
+    '''
+        Exponentially decreasing learning rate.
+        zero_rate - rate to multiply the epoch/training size by, keyword argument
+    '''
     def __init__(self, start_rate, max_epochs, training_size, zero_rate=0.5):
         
+        #Set the training size
         self.training_size = training_size
         
+        #Do checks as both need to be greater than zero
         assert start_rate > 0, (
             "starting rate expected to be > 0, got %f" % start_rate
         )
         assert zero_rate > 0, (
             "zero rate expected to be > 0, got %f" % zero_rate
         )
+        
+        #Init the super class with the max epochs
         super(LearningRateExponential, self).__init__(max_epochs)
         
+        #Set the class properties
         self.start_rate = start_rate
         self.zero_rate = zero_rate
         self.rate = start_rate
         self.epoch = 1
     
+    #Reset the epochs and start_rate
     def reset(self):
         self.rate = self.start_rate
         self.epoch = 0
         
+    #Return the current rate
     def get_rate(self):
-        if (self.epoch == 1 and self.zero_rate!=None):
-            return self.zero_rate
         return self.rate  
-
+    
     def get_next_rate(self,current_accuracy=None):  
+        # If epochs have over ran return zero
         if ( (self.max_epochs > 10000) or (self.epoch >= self.max_epochs) ):
-            #logging.debug('Setting rate to 0.0. max_epochs or epoch>=max_epochs')
             self.rate = 0.0
         else:
             #Use float or it won't return properly.
             self.rate = self.zero_rate * numpy.exp(-float(self.epoch)/float(self.training_size))
+            #Increase the epochs for the next round
             self.epoch += 1
+        #Log the rate for checking in logger - Not entirely needed
         logger.info(self.rate)
         return self.rate
 
@@ -246,7 +257,11 @@ class DropoutAnnealed(LearningRateList):
         
         self.lr_temp = []
         
+        '''
+            To build up the rates, if the rates are set differently.
+        '''
         if p_inp_keep > p_hid_keep:
+            #Ensures we stop at one.
             while(p_hid_keep < 1):
                 #Do in this order to stop probabilities larger than 1 being appended.
                 self.lr_temp.append((p_inp_keep, p_hid_keep))
@@ -273,6 +288,7 @@ class DropoutAnnealed(LearningRateList):
                     p_hid_keep = 1
                 p_inp_keep = p_inp_keep + constant_to_reduce
         else:
+            #Build normally, as they are set together
             while(p_inp_keep < 1 and p_hid_keep < 1):
                 #Do in this order to stop probabilities larger than 1 being appended.
                 self.lr_temp.append((p_inp_keep, p_hid_keep))
@@ -290,6 +306,9 @@ class DropoutAnnealed(LearningRateList):
         #Return the current dropout rate
         return self.lr_list[self.epoch]
 
+    '''
+        The reason we altered the optimisers
+    '''
     def get_next_rate(self, current_accuracy=None):
         # Not ran out of rates yet so return
         if(self.epoch == len(self.lr_list)-1):
