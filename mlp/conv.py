@@ -114,7 +114,23 @@ class ConvLinear(Layer):
         :param conv_grad: handle to a convolution function used in pgrads
         :return:
         """
-
+        
+        if(rng = None):
+            seed=[2015, 10, 1]
+            self.rng = numpy.random.RandomState(seed)
+        else:
+            self.rng = rng
+        
+        self.num_out_feat_maps = num_out_feat_maps
+        self.kernel_shape_x = kernel_shape[0]
+        self.kernel_shape_y = kernel_shape[1]
+        #Implement bias like kernels, where kernels are our weights
+        
+        #Make weights, use 1 to help broadcasting
+        self.kernels = self.rng.uniform(-irange, irange,(1,self.num_out_feat_maps, self.kernel_shape_x, self.kernel_shape.y)) 
+        
+        self.bias = numpy.zeros(self.num_out_feat_maps)
+        
         super(ConvLinear, self).__init__(rng=rng)
 
         raise NotImplementedError()
@@ -138,13 +154,15 @@ class ConvLinear(Layer):
         raise NotImplementedError('ConvLinear.bprop_cost method not implemented')
 
     def pgrads(self, inputs, deltas, l1_weight=0, l2_weight=0):
+        
         raise NotImplementedError()
 
     def get_params(self):
-        raise NotImplementedError()
+        return self.kernels, self.bias
 
     def set_params(self, params):
-        raise NotImplementedError()
+        self.kernels = params[0]
+        self.bias = params[1]
 
     def get_name(self):
         return 'convlinear'
@@ -252,6 +270,7 @@ class ConvMaxPool2D(Layer):
         
         
     def bprop(self, h, igrads):
+        #Pass back the igrads multiplied by pseduo weight matrix.
         raise NotImplementedError()
 
     def get_params(self):
