@@ -28,13 +28,13 @@ def gaussianBlur(self,img, am):
 #Rotate by a random number    
 def rotate(self,img,am):
     '''
-           Rotate randomly, only worthwile between [-10,10], otherwise it's hard to keep it central.
+           Rotate randomly, only worthwile between [-5,5] (Originally [-10,10], otherwise it's hard to keep it central.
                Increase if you don't mind some figures having tips cut off.
                Re-size back to normal size of arrays given, then flatten back to 784.
     '''
     img = img.reshape(28,28)
     if am == 0:
-        temp = scipy.ndimage.interpolation.rotate(img, randint(-10,10))
+        temp = scipy.ndimage.interpolation.rotate(img, randint(-5,5))
     else:
         temp = scipy.ndimage.interpolation.rotate(img, am)
     temp = temp[0:28,0:28].copy()
@@ -49,10 +49,10 @@ def dropPixels(self,img,am):
     d = self.rng.binomial(1, pd, img.shape)
     return d*img
 
-#Shift the image either left or right by a few dimensions
+#Shift the image either left or right by a few dimensions - originally between [-5,5]
 def shiftImg(self,img, am):
     if am == 0:
-        return numpy.roll(img, randint(-5,5))
+        return numpy.roll(img, randint(-3,3))
     else:
         return numpy.roll(img, am)
 
@@ -253,30 +253,19 @@ class MNISTDataProvider(DataProvider):
             rval_t = numpy.array(ret_t)
         #Add else if 6, then apply all 
         elif self.augmentation == 6:
+            print 'here'
             ret_x = []
             ret_t = []
             for idx,img in enumerate(rval_x):
                 #no need for this as it is applied in no aug.
                 #ret_x.append(img)
                 #Apply all augmentations
-                for i in xrange(0,5):
+                for i in xrange(1,5):
                     #Add all t's
                     ret_t.append(rval_t[idx])
                     #Learn to use the best value found
                     ret_x.append(options[i](self, img, 0))
             #extend the original batch with all augmented versions        
-            rval_x = numpy.array(ret_x)
-            rval_t = numpy.array(ret_t)
-        else:
-            ret_x = []
-            ret_t = []
-            for idx,img in enumerate(rval_x):
-                ret_t.append(rval_t[idx])
-                ret_t.append(rval_t[idx])
-                ret_x.append(img)
-                #Otherwise  use value passed
-                ret_x.append(options[self.augmentation](self, img, self.aug_amount))
-            #extend the original batch with all augmented versions    
             rval_x = numpy.array(ret_x)
             rval_t = numpy.array(ret_t)
         

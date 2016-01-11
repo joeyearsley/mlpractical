@@ -67,7 +67,7 @@ class LearningRateExponential(LearningRateScheduler):
         Exponentially decreasing learning rate.
         zero_rate - rate to multiply the epoch/training size by, keyword argument
     '''
-    def __init__(self, start_rate, max_epochs, training_size, zero_rate=0.5):
+    def __init__(self, start_rate, max_epochs, training_size, zero_rate=None):
         
         #Set the training size
         self.training_size = training_size
@@ -76,6 +76,11 @@ class LearningRateExponential(LearningRateScheduler):
         assert start_rate > 0, (
             "starting rate expected to be > 0, got %f" % start_rate
         )
+        
+        #If not set then set to the original start rate
+        if(zero_rate == None):
+            zero_rate = start_rate
+            
         assert zero_rate > 0, (
             "zero rate expected to be > 0, got %f" % zero_rate
         )
