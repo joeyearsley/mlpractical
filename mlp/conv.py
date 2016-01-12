@@ -7,7 +7,8 @@ import numpy
 import logging
 from mlp.layers import Layer, max_and_argmax
 from types import *
-
+from convc import my1_conv2d
+#from mlp.convc import my1_conv2d
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ keep the layer implementation independent of conv operator implementation, and y
 swap it layer, for example, for more efficient implementation if you came up with one, etc.
 """
 
-def my1_conv2d(image, kernels, strides=(1, 1), pool=False):
+def my1_conv2(image, kernels, strides=(1, 1), pool=False):
     """
     Implements a 2d valid convolution of kernels with the image
     Note: filter means the same as kernel and convolution (correlation) of those with the input space
@@ -47,60 +48,65 @@ def my1_conv2d(image, kernels, strides=(1, 1), pool=False):
     #Padding not implemented
     padding = 0
     
-    #Get kernel sizes
-    if(pool):
-        kxdim = kernels.shape[0]
-        kydim = kernels.shape[1]
-    else:
-        kxdim = kernels.shape[2]
-        kydim = kernels.shape[3]
-    
-    #Can calculate here as this is all we are going to go to anyway.
-    xdims = ((image.shape[2] - kxdim + (2*padding))/(strides[0])+1)
-    ydims = ((image.shape[3] - kydim + (2*padding))/(strides[1])+1)
-    
-    #Do assertions to ensure passed in the correct type.
-    assert type(xdims) is IntType,"Can't make feature map with x-stride: %r" % strides[0]
-    assert type(ydims) is IntType,"Can't make feature map with y-stride: %r" % strides[1]
-    
-    
-    
+    kxdim = kernels.shape[2]
+    kydim = kernels.shape[3]
     #Get feature map size out
     num_out_feat_maps = kernels.shape[1]
     #Get input feature size
     num_inp_feat_maps = kernels.shape[0]
-     
+        
+    
+    assert kxdim <= image.shape[2], 'Kernel can be max the size of the image'
+    assert kydim <= image.shape[3], 'Kernel can be max the size of the image'
+    
+    #Can calculate here as this is all we are going to go to anyway - xdims is how many times kernel can move...
+    #These only tell us if we can use strides
+    strides_pos_x = ((image.shape[2] - kxdim + (2*padding))/(strides[0])) +1
+    strides_pos_y = ((image.shape[3] - kydim + (2*padding))/(strides[1])) +1
+    
+    #Do assertions to ensure passed in the correct type, strides pos also correspond to the output size.
+    assert type(strides_pos_x) is IntType,"Can't make feature map with x-stride: %r" % strides[0]
+    assert type(strides_pos_y) is IntType,"Can't make feature map with y-stride: %r" % strides[1]
+    
     #Create G matrix
     G = numpy.zeros(image.shape)
     
+    #Actual number of dimensions to traverse, +1 to count for range function
+    xdims = (image.shape[2] - kxdim) + 1
+    ydims = (image.shape[3] - kydim) + 1
+    
     #Create empty 4D tensor
-    output =  numpy.zeros((batch_size,out,xdims,ydims))
+    output =  numpy.zeros((batch_size,out,strides_pos_x,strides_pos_y))
     
     #For each image in batch
     for img in xrange(batch_size):
         #For each feature map (output map)
         for fm in xrange(num_out_feat_maps):
             #For each x-dim in output
+            '''
+                Striding is taken care of by going through all input x dimensions with a stride, then putting them into the
+                output file 
+            '''
             for x in xrange(0,xdims,strides[0]):
                 #For each y-dim in output
                 for y in xrange(0,ydims,strides[1]):
                     #Get image slice from entire image, corresponds to kernel size, accross all channels.
                     if(pool == True):
                         imgSlice = image[img, fm, x:x+kxdim, y:y+kydim]
-                        maxi, maxInd = max_and_argmax(imgSlice)
+                        maxi, maxInd = max_and_argmax(imgSlice, keepdims_argmax=True)
+                        #No need to div by strides
                         output[img, fm, x/strides[0], y/strides[1]] = maxi
-                        #Search the pool for all points corresponding to the max, fine for small filter
-                        for xin in range(imgSlice.shape[0]):
-                            for yin in range(imgSlice.shape[1]):
-                                if imgSlice[xin,yin] == maxi:
-                                    G[img,fm,x+xin, y+yin] = 1
+                        #Add first corresponding max into G mat
+                        G[img,fm,x+maxInd[0],y+maxInd[1]] = 1
                         
                     else:
                         imgSlice = image[img, :, x:x+kxdim, y:y+kydim]
                         #Get kernels accross all channels.
                         kernel = kernels[:, fm, :, :]
+                        
                         '''
-                        Do the dot product to get the position.
+                            Do the dot product to get the position.
+                            Divide by strides to get actual output position
                         '''
                         output[img, fm, x/strides[0], y/strides[1]] = numpy.dot(imgSlice.flatten(),kernel.flatten())
                 
@@ -148,6 +154,8 @@ class ConvLinear(Layer):
         #Make weights, use 1 to help broadcasting, wouldn't allow to use None and saves having to reshape later
         self.kernels = self.rng.uniform(-irange, irange,(self.num_inp_feat_maps,self.num_out_feat_maps, self.kernel_shape_x, self.kernel_shape_y)) 
         
+        self.kernels = self.kernels.astype(numpy.float64)
+        
         self.bias = numpy.zeros(self.num_out_feat_maps)
         
         super(ConvLinear, self).__init__(rng=rng)
@@ -155,8 +163,8 @@ class ConvLinear(Layer):
 
     def fprop(self, inputs):
         # Do usual convolution and add broadcasted bias
+        inputs = inputs.astype(numpy.float64)
         retx,_ = my1_conv2d(inputs, self.kernels)
-        
         for inx in xrange(0, self.num_out_feat_maps):
             retx[:,inx,:,:] += self.bias[inx]
         return  retx
@@ -175,18 +183,10 @@ class ConvLinear(Layer):
         #Pad with igrads with zeros either side.
         m = self.kernel_shape_x
         ig = numpy.pad(igrads, ((0,0),(0,0),(m-1,m-1),(m-1,m-1)), mode='constant', constant_values=0)
-        
-        tempKernels = numpy.zeros((self.num_out_feat_maps,self.num_inp_feat_maps,self.kernel_shape_x ,self.kernel_shape_y))
-        tempKernels = self.kernels.swapaxes(0,1)
-        print tempKernels.shape,'temp'
-        #Rotate as expected along specific axes
-        for n in range(0,self.num_out_feat_maps):
-            for m in range(0,self.num_inp_feat_maps):
-                tempKernels[n,m,:,:] = numpy.rot90(tempKernels[n,m,:,:], 2)
-                
-                
+        #Swap axes as we are going backwards, flip last 2 axis to emulate rotate of 180.
+        tempKernels = self.kernels.swapaxes(0,1)[:,:,::-1,::-1]
         #Swap axes as we are going backwards.
-        ograds,_ = my1_conv2d(ig,tempKernels)#.swapaxes(0,1))
+        ograds,_ = my1_conv2d(ig,tempKernels)
         
         return igrads, ograds
         
@@ -349,19 +349,19 @@ class ConvMaxPool2D(Layer):
     
     def fprop(self, inputs):
         '''
-            Should get max from 2x2 kernel, implemented with normal conv to save code space
+            Create kernel, so normal conv will work
         '''
-        out, self.G = my1_conv2d(inputs, self.pool, strides=self.stride, pool = True)
+        kernel = numpy.zeros((1,self.feat,self.pool_shape[0],self.pool_shape[1]))   
+        
+        out, self.G = my1_conv2d(inputs, kernel, strides=self.stride, pool = True)
         return out
     
     def bprop(self, h, igrads):
-        
         #First reshape the igrads to the same size as the 
         igrads = igrads.reshape(igrads.shape[0], h.shape[1], h.shape[2], h.shape[3])
-        print igrads.shape
         
         #Make a copy!
-        self.ograds = self.G.copy()
+        self.ograds = numpy.zeros(self.G.shape)
         
         for b in xrange(igrads.shape[0]):
             for f in xrange(h.shape[1]):
@@ -375,7 +375,8 @@ class ConvMaxPool2D(Layer):
                             In generic, you would have to += with the G matrix * igrads, 
                             also maybe change multiply by stride to plus
                         '''
-                        self.ograds[b,f,xs:xs+self.pool_shape[0], ys:ys+self.pool_shape[1]] *= igrads[b,f,x,y]
+                        self.ograds[b,f,xs:xs+self.pool_shape[0], ys:ys+self.pool_shape[1]] += (
+                                self.G[b,f,xs:xs+self.pool_shape[0], ys:ys+self.pool_shape[1]] * igrads[b,f,x,y])
         
         return igrads, self.ograds
         
@@ -389,6 +390,12 @@ class ConvMaxPool2D(Layer):
 
     def set_params(self, params):
         pass
+    
+    def get_G(self):
+        return self.G
+    
+    def set_G(self, G):
+        self.G = G
 
     def get_name(self):
         return 'convmaxpool2d'

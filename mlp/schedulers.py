@@ -241,7 +241,7 @@ class DropoutAnnealed(LearningRateList):
         p_inp_keep * layer will always return the layer.
     
     '''
-    def __init__(self, p_inp_keep, p_hid_keep, constant_to_reduce):
+    def __init__(self, p_inp_keep, p_hid_keep, max_epochs, constant_to_reduce = None):
         '''
         
             :type p_inp_keep: float
@@ -263,6 +263,16 @@ class DropoutAnnealed(LearningRateList):
         self.lr_temp = []
         
         '''
+            If contant is set, then it is not trully annealed,
+            If constant not set then do annealed based upon base rate
+        '''
+        if constant_to_reduce == None:
+            constant_to_reduce_hid = ((1.-p_hid_keep)/max_epochs)
+            constant_to_reduce_inp = ((1.-p_inp_keep)/max_epochs)
+        else:
+            constant_to_reduce_hid = constant_to_reduce
+            constant_to_reduce_inp = constant_to_reduce
+        '''
             To build up the rates, if the rates are set differently.
         '''
         if p_inp_keep > p_hid_keep:
@@ -275,10 +285,10 @@ class DropoutAnnealed(LearningRateList):
                     if it's not then we set to the upper bound of 1.
                 '''
                 if (p_inp_keep + constant_to_reduce) < 1:
-                    p_inp_keep = p_inp_keep + constant_to_reduce
+                    p_inp_keep = p_inp_keep + constant_to_reduce_inp
                 else:
                     p_inp_keep = 1
-                p_hid_keep = p_hid_keep + constant_to_reduce
+                p_hid_keep = p_hid_keep + constant_to_reduce_hid
         elif p_inp_keep < p_hid_keep:
             while(p_inp_keep < 1):
                 #Do in this order to stop probabilities larger than 1 being appended.
@@ -288,18 +298,18 @@ class DropoutAnnealed(LearningRateList):
                     if it's not then we set to the upper bound of 1.
                 '''
                 if (p_hid_keep + constant_to_reduce) < 1:
-                    p_hid_keep = p_hid_keep + constant_to_reduce
+                    p_hid_keep = p_hid_keep + constant_to_reduce_hid
                 else:
                     p_hid_keep = 1
-                p_inp_keep = p_inp_keep + constant_to_reduce
+                p_inp_keep = p_inp_keep + constant_to_reduce_inp
         else:
             #Build normally, as they are set together
             while(p_inp_keep < 1 and p_hid_keep < 1):
                 #Do in this order to stop probabilities larger than 1 being appended.
                 self.lr_temp.append((p_inp_keep, p_hid_keep))
                 #Drop out annealed is supposed to increase by a constant amount.
-                p_inp_keep = p_inp_keep + constant_to_reduce
-                p_hid_keep = p_hid_keep + constant_to_reduce
+                p_inp_keep = p_inp_keep + constant_to_reduce_inp
+                p_hid_keep = p_hid_keep + constant_to_reduce_hid
         
         # Add the upperbounds anyway, as this is what the last one *should* be.
         self.lr_temp.append((1, 1))

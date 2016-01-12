@@ -357,3 +357,474 @@ def test_conv_linear_pgrads(layer, kernel_order='ioxy', kernels_first=True,
     finally:
         layer.set_params(orig_params)
     return True
+
+
+def test_maxpool_fprop(layer, kernel_order='ioxy', kernels_first=True,
+                           dtype=numpy.float):
+    """ 
+    Tests forward propagation method of a convolutional layer.
+    
+    Checks the outputs of `fprop` method for a fixed input against known
+    reference values for the outputs and raises an AssertionError if
+    the outputted values are not consistent with the reference values. If
+    tests are all passed returns True.
+    
+    Parameters
+    ----------
+    layer : instance of Layer subclass
+        Convolutional (linear only) layer implementation. It must implement
+        the methods `get_params`, `set_params` and `fprop`.
+    kernel_order : string
+        Specifes dimension ordering assumed for convolutional kernels
+        passed to `layer`. Default is `ioxy` which corresponds to:
+            input channels, output channels, image x, image y
+        The other option is 'oixy' which corresponds to
+            output channels, input channels, image x, image y
+        Any other value will raise a ValueError exception.
+    kernels_first : boolean
+        Specifies order in which parameters are passed to and returned from
+        `get_params` and `set_params`. Default is True which corresponds
+        to signatures of `get_params` and `set_params` being:
+            kernels, biases = layer.get_params()
+            layer.set_params([kernels, biases])
+        If False this corresponds to signatures of `get_params` and 
+        `set_params` being:
+            biases, kernels = layer.get_params()
+            layer.set_params([biases, kernels])
+    dtype : numpy data type
+         Data type to use in numpy arrays passed to layer methods. Default
+         is `numpy.float`.
+            
+    Raises
+    ------
+    AssertionError
+        Raised if output of `layer.fprop` is inconsistent with reference
+        values either in shape or values.
+    ValueError
+        Raised if `kernel_order` is not a valid order string.
+    """
+    inputs = numpy.array(
+      [[[[  1.,   0,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   3.,   4., 0.],
+         [  0.,   3.,   4., 0.]],
+        [[  7.,   0,   0.,8.],
+         [  0,  0,   0.,0.],
+         [  0.,   3.,   5., 0.],
+         [  0.,   6.,   4., 0.]]],
+       [[[  10.,   0,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   3.,   4., 0.],
+         [  0.,   3.,   4., 0.]],
+        [[  8.,   0,   0.,11.],
+         [  0,  0,   0.,0.],
+         [  0.,   9.,   5., 0.],
+         [  0.,   6.,   4., 0.]]]], dtype=dtype)
+    true_output = numpy.array(
+      [[[[  1.,2.],
+         [  3.,4.]],
+        [[  7.,8.],
+         [  6., 5.]]],
+       [[[  10.,2.],
+         [  3., 4.]],
+        [[  8., 11.],
+         [  9.,   5.]]]], dtype=dtype)
+    true_G = numpy.array(
+      [[[[  1.,   0,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  1.,   0,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   0.,   1., 0.],
+         [  0.,   1.,   0., 0.]]],
+       [[[  1.,   0,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  1.,   0,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]]]], dtype=dtype)
+    try:
+        layer_output = layer.fprop(inputs)
+        layer_G = layer.get_G()
+        assert layer_output.shape == true_output.shape, (
+            'Layer fprop gives incorrect shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(true_output.shape, layer_output.shape)
+        )
+        assert layer_G.shape == true_G.shape, (
+            'Layer G gives incorrect G shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(true_output.shape, layer_output.shape)
+        )
+        assert numpy.allclose(layer_G, true_G), (
+            'Layer fprop does not give correct output. '
+            'Correct output is {0}\n but returned output is {1}.'
+            .format(true_G, layer_G)
+        )
+        assert numpy.allclose(layer_output,true_output), (
+            'Layer G gives incorrect G shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(true_output, layer_output)
+        )
+    finally:
+        pass
+    return True
+
+def test_maxpool_generic_fprop(layer, kernel_order='ioxy', kernels_first=True,
+                           dtype=numpy.float):
+    """ 
+    Tests forward propagation method of a convolutional layer.
+    
+    Checks the outputs of `fprop` method for a fixed input against known
+    reference values for the outputs and raises an AssertionError if
+    the outputted values are not consistent with the reference values. If
+    tests are all passed returns True.
+    
+    Parameters
+    ----------
+    layer : instance of Layer subclass
+        Convolutional (linear only) layer implementation. It must implement
+        the methods `get_params`, `set_params` and `fprop`.
+    kernel_order : string
+        Specifes dimension ordering assumed for convolutional kernels
+        passed to `layer`. Default is `ioxy` which corresponds to:
+            input channels, output channels, image x, image y
+        The other option is 'oixy' which corresponds to
+            output channels, input channels, image x, image y
+        Any other value will raise a ValueError exception.
+    kernels_first : boolean
+        Specifies order in which parameters are passed to and returned from
+        `get_params` and `set_params`. Default is True which corresponds
+        to signatures of `get_params` and `set_params` being:
+            kernels, biases = layer.get_params()
+            layer.set_params([kernels, biases])
+        If False this corresponds to signatures of `get_params` and 
+        `set_params` being:
+            biases, kernels = layer.get_params()
+            layer.set_params([biases, kernels])
+    dtype : numpy data type
+         Data type to use in numpy arrays passed to layer methods. Default
+         is `numpy.float`.
+            
+    Raises
+    ------
+    AssertionError
+        Raised if output of `layer.fprop` is inconsistent with reference
+        values either in shape or values.
+    ValueError
+        Raised if `kernel_order` is not a valid order string.
+    """
+    inputs = numpy.array(
+      [[[[  1.,   0,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   3.,   4., 0.],
+         [  0.,   3.,   4., 0.]],
+        [[  7.,   0,   0.,8.],
+         [  0,  0,   0.,0.],
+         [  0.,   3.,   5., 0.],
+         [  0.,   6.,   4., 0.]]],
+       [[[  10.,   0,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   3.,   4., 0.],
+         [  0.,   3.,   4., 0.]],
+        [[  8.,   0,   0.,11.],
+         [  0,  0,   0.,0.],
+         [  0.,   9.,   5., 0.],
+         [  10.,   6.,   4., 0.]]]], dtype=dtype)
+    true_output = numpy.array(
+      [[[[  1.,0. ,2.],
+         [  3.,4. ,4.],
+         [  3.,4. ,4.]],
+        [[  7.,0. ,8.],
+         [  3.,5. ,5.],
+         [  6.,6. ,5.]]],
+       [[[  10.,0.,2.],
+         [  3., 4., 4.],
+         [  3.,4. ,4.]],
+        [[  8.,0. ,11.],
+         [  9. ,9.,5.],
+         [  10.,9.,5.]]]], dtype=dtype)
+    true_G = numpy.array(
+      [[[[  1.,   1.,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  1.,   1.,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   1.,   0., 0.]]],
+       [[[  1.,   1.,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  1.,   1.,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  1.,   0.,   0., 0.]]]], dtype=dtype)
+    try:
+        layer_output = layer.fprop(inputs)
+        layer_G = layer.get_G()
+        assert layer_output.shape == true_output.shape, (
+            'Layer fprop gives incorrect shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(true_output.shape, layer_output.shape)
+        )
+        assert layer_G.shape == true_G.shape, (
+            'Layer G gives incorrect G shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(true_output.shape, layer_output.shape)
+        )
+        assert numpy.allclose(layer_G, true_G), (
+            'Layer fprop does not give correct output. '
+            'Correct output is {0}\n but returned output is {1}.'
+            .format(true_G, layer_G)
+        )
+        assert numpy.allclose(layer_output,true_output), (
+            'Layer G gives incorrect G shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(true_output, layer_output)
+        )
+    finally:
+        pass
+    return True
+
+
+def test_maxpool_bprop(layer, kernel_order='ioxy', kernels_first=True,
+                           dtype=numpy.float):
+    """ 
+    Tests forward propagation method of a convolutional layer.
+    
+    Checks the outputs of `fprop` method for a fixed input against known
+    reference values for the outputs and raises an AssertionError if
+    the outputted values are not consistent with the reference values. If
+    tests are all passed returns True.
+    
+    Parameters
+    ----------
+    layer : instance of Layer subclass
+        Convolutional (linear only) layer implementation. It must implement
+        the methods `get_params`, `set_params` and `fprop`.
+    kernel_order : string
+        Specifes dimension ordering assumed for convolutional kernels
+        passed to `layer`. Default is `ioxy` which corresponds to:
+            input channels, output channels, image x, image y
+        The other option is 'oixy' which corresponds to
+            output channels, input channels, image x, image y
+        Any other value will raise a ValueError exception.
+    kernels_first : boolean
+        Specifies order in which parameters are passed to and returned from
+        `get_params` and `set_params`. Default is True which corresponds
+        to signatures of `get_params` and `set_params` being:
+            kernels, biases = layer.get_params()
+            layer.set_params([kernels, biases])
+        If False this corresponds to signatures of `get_params` and 
+        `set_params` being:
+            biases, kernels = layer.get_params()
+            layer.set_params([biases, kernels])
+    dtype : numpy data type
+         Data type to use in numpy arrays passed to layer methods. Default
+         is `numpy.float`.
+            
+    Raises
+    ------
+    AssertionError
+        Raised if output of `layer.fprop` is inconsistent with reference
+        values either in shape or values.
+    ValueError
+        Raised if `kernel_order` is not a valid order string.
+    """
+    ograds = numpy.array(
+      [[[[  2.,   0,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   2.,   2., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  2.,   0,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   0.,   2., 0.],
+         [  0.,   2.,   0., 0.]]],
+       [[[  2.,   0,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   2.,   2., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  2.,   0,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   2.,   2., 0.],
+         [  0.,   0.,   0., 0.]]]], dtype=dtype)
+    true_output = numpy.array(
+      [[[[  1.,2.],
+         [  3.,4.]],
+        [[  7.,8.],
+         [  6., 5.]]],
+       [[[  10.,2.],
+         [  8., 11.]],
+        [[  8., 11.],
+         [  9.,   6.]]]], dtype=dtype)
+    igrads = numpy.array(
+      [[[[  2.,2.],
+         [  2.,2.]],
+        [[  2.,2.],
+         [  2., 2.]]],
+       [[[  2.,2.],
+         [  2., 2.]],
+        [[  2., 2.],
+         [  2., 2.]]]], dtype=dtype)
+    true_G = numpy.array(
+      [[[[  1.,   0,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  1.,   0,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   0.,   1., 0.],
+         [  0.,   1.,   0., 0.]]],
+       [[[  1.,   0,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  1.,   0,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]]]], dtype=dtype)
+    try:
+        layer.set_G(true_G)
+        igr,layer_output = layer.bprop(true_output,igrads)
+        assert layer_output.shape == ograds.shape, (
+            'Layer fprop gives incorrect shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(ograds.shape, layer_output.shape)
+        )
+        assert numpy.allclose(layer_output,ograds), (
+            'Layer G gives incorrect G shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(ograds, layer_output)
+        )
+    finally:
+        pass
+    return True
+
+
+def test_maxpool_generic_bprop(layer, kernel_order='ioxy', kernels_first=True,
+                           dtype=numpy.float):
+    """ 
+    Tests forward propagation method of a convolutional layer.
+    
+    Checks the outputs of `fprop` method for a fixed input against known
+    reference values for the outputs and raises an AssertionError if
+    the outputted values are not consistent with the reference values. If
+    tests are all passed returns True.
+    
+    Parameters
+    ----------
+    layer : instance of Layer subclass
+        Convolutional (linear only) layer implementation. It must implement
+        the methods `get_params`, `set_params` and `fprop`.
+    kernel_order : string
+        Specifes dimension ordering assumed for convolutional kernels
+        passed to `layer`. Default is `ioxy` which corresponds to:
+            input channels, output channels, image x, image y
+        The other option is 'oixy' which corresponds to
+            output channels, input channels, image x, image y
+        Any other value will raise a ValueError exception.
+    kernels_first : boolean
+        Specifies order in which parameters are passed to and returned from
+        `get_params` and `set_params`. Default is True which corresponds
+        to signatures of `get_params` and `set_params` being:
+            kernels, biases = layer.get_params()
+            layer.set_params([kernels, biases])
+        If False this corresponds to signatures of `get_params` and 
+        `set_params` being:
+            biases, kernels = layer.get_params()
+            layer.set_params([biases, kernels])
+    dtype : numpy data type
+         Data type to use in numpy arrays passed to layer methods. Default
+         is `numpy.float`.
+            
+    Raises
+    ------
+    AssertionError
+        Raised if output of `layer.fprop` is inconsistent with reference
+        values either in shape or values.
+    ValueError
+        Raised if `kernel_order` is not a valid order string.
+    """
+    true_G = numpy.array(
+      [[[[  1.,   1.,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  1.,   1.,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   1.,   0., 0.]]],
+       [[[  1.,   1.,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  1.,   1.,   0.,1.],
+         [  0,  0,   0.,0.],
+         [  0.,   1.,   1., 0.],
+         [  1.,   0.,   0., 0.]]]], dtype=dtype)
+    ograds = numpy.array(
+      [[[[  2.,   4.,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   8.,   8., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  2.,   4.,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   8.,   8., 0.],
+         [  0.,   4.,   0., 0.]]],
+       [[[  2.,   4.,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   8.,   8., 0.],
+         [  0.,   0.,   0., 0.]],
+        [[  2.,   4.,   0.,2.],
+         [  0,  0,   0.,0.],
+         [  0.,   8.,   8., 0.],
+         [  2.,   0.,   0., 0.]]]], dtype=dtype)
+    true_output = numpy.array(
+      [[[[  1.,0. ,2.],
+         [  3.,4. ,4.],
+         [  3.,4. ,4.]],
+        [[  7.,0. ,8.],
+         [  3.,5. ,5.],
+         [  6.,6. ,5.]]],
+       [[[  10.,0.,2.],
+         [  3., 4., 4.],
+         [  3.,4. ,4.]],
+        [[  8.,0. ,11.],
+         [  9. ,9.,5.],
+         [  10.,9.,5.]]]], dtype=dtype)
+    igrads = numpy.array(
+      [[[[  2.,2.,2.],
+         [  2.,2.,2.],
+         [  2.,2.,2.]],
+        [[  2.,2.,2.],
+         [  2.,2.,2.],
+         [  2.,2.,2.]]],
+       [[[  2.,2.,2.],
+         [  2.,2.,2.],
+         [  2.,2.,2.]],
+        [[  2.,2.,2.],
+         [  2.,2.,2.],
+         [  2.,2.,2.]]]], dtype=dtype)
+    
+    try:
+        layer.set_G(true_G)
+        igr,layer_output = layer.bprop(true_output,igrads)
+        assert layer_output.shape == ograds.shape, (
+            'Layer fprop gives incorrect shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(ograds.shape, layer_output.shape)
+        )
+        assert numpy.allclose(layer_output ,ograds ), (
+            'Layer G gives incorrect G shaped output. '
+            'Correct shape is {0} but returned shape is {1}.'
+            .format(ograds, layer_output)
+        )
+    finally:
+        pass
+    return True
+
